@@ -14,7 +14,7 @@ A lightweight Trello-like task board built with:
 
 ## Development
 
-- Backend: `cd server && flask run`
+- Backend: `cd server && flask run` python app.py
 - Frontend: `cd client && npm run dev`
 
 ## Status
