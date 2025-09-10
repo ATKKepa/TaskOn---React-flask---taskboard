@@ -4,13 +4,23 @@ import App from './App'
 
 // Mantine
 import { MantineProvider } from '@mantine/core'
+import type { MantineThemeOverride } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
+
+const theme: MantineThemeOverride = {
+  defaultRadius: 'md',
+  fontFamily: 'Inter, system-ui, Avenir, Helvetica, Arial, sans-serif',
+  components: {
+    Paper: { defaultProps: { shadow: 'sm' } },
+    Button: { defaultProps: { variant: 'filled' } },
+  },
+};
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <MantineProvider defaultColorScheme="dark">
+    <MantineProvider defaultColorScheme="dark" theme={theme}>
       <Notifications />
       <App />
     </MantineProvider>
   </React.StrictMode>,
-)
+);
