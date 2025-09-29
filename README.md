@@ -1,4 +1,4 @@
-# Trello Lite WIP
+# TaskOn WIP
 
 A lightweight Trello-like task board built with:
 
