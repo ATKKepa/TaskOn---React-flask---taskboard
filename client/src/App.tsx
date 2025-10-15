@@ -1,263 +1,207 @@
-import {
-  TextInput,
-  Button,
-  Group,
-  Stack,
-  Paper,
-  Text,
-  Checkbox,
-  ActionIcon,
-  SegmentedControl,
-  AppShell,
-  Skeleton,
-  Container,
-} from "@mantine/core";
+import { AppShell, Group } from "@mantine/core";
+import { Global } from "@emotion/react";
+import bgImage from "./assets/background.jpg";
 import { notifications } from "@mantine/notifications";
-import { IconTrash } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { api } from "./api";
-import type { Todo } from "./types";
-
-type Filter = "all" | "active" | "done";
+import type { Todo, List } from "./types";
+import { Boards } from "./components/Boards";
+import { SummaryCard } from "./components/SummaryCard";
+import { AddNewCard } from "./components/AddNewCard";
 
 function App() {
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [newTitle, setNewTitle] = useState("");
-  const [loading, setLoading] = useState(false);
-  const total = todos.length;
-  const doneCount = todos.filter((t) => Boolean(t.done)).length;
-  const activeCount = total - doneCount;
+  const [lists, setLists] = useState<List[]>([]);
+  const [listTodos, setListTodos] = useState<Record<number, Todo[]>>({});
+  const [perListDraft, setPerListDraft] = useState<Record<number, string>>({});
+  const [scrollKey, setScrollKey] = useState(0);
 
-  const [filter, setFilter] = useState<Filter>(() => {
-    const saved = localStorage.getItem("filter");
-    return saved === "all" || saved === "active" || saved === "done"
-      ? (saved as Filter)
-      : "all";
-  });
-
-  // sync
-  useEffect(() => {
-    localStorage.setItem("filter", filter);
-  }, [filter]);
-
-  const visibleTodos = todos.filter((t) => {
-    if (filter === "all") return true;
-    if (filter === "active") return !Boolean(t.done);
-    return Boolean(t.done); // 'done'
-  });
-
-  async function loadTodos() {
-    setLoading(true);
+  async function loadListsAndTodos() {
     try {
-      const data = await api.list();
-      setTodos(data);
+      const ls = await api.lists.all();
+      setLists(ls);
+      const entries = await Promise.all(
+        ls.map(async (l) => [l.id, await api.todosByList.all(l.id)] as const)
+      );
+      setListTodos(Object.fromEntries(entries));
     } catch (e: any) {
       notifications.show({ color: "red", title: "Error", message: e.message });
-    } finally {
-      setLoading(false);
     }
   }
-
   useEffect(() => {
-    loadTodos();
+    loadListsAndTodos();
   }, []);
 
-  async function addTodo() {
-    const t = newTitle.trim();
-    if (!t) return;
+  async function addListWith(name: string, color: string) {
     try {
-      const created = await api.create(t);
-      setTodos((xs) => [created, ...xs]);
-      setNewTitle("");
+      const created = await api.lists.create(name, color);
+
+      await api.lists.update(created.id, { position: lists.length });
+
+      setLists((xs) => [...xs, { ...created, position: lists.length }]);
+      setListTodos((m) => ({ ...m, [created.id]: [] }));
+
+      setScrollKey((k) => k + 1);
     } catch (e: any) {
       notifications.show({ color: "red", title: "Error", message: e.message });
     }
   }
 
-  async function toggleDone(todo: Todo) {
+  async function addTodoToList(listId: number) {
+    const title = (perListDraft[listId] || "").trim();
+    if (!title) return;
+    try {
+      const created = await api.todosByList.create(listId, title);
+      setListTodos((m) => ({
+        ...m,
+        [listId]: [created, ...(m[listId] || [])],
+      }));
+      setPerListDraft((s) => ({ ...s, [listId]: "" }));
+    } catch (e: any) {
+      notifications.show({ color: "red", title: "Error", message: e.message });
+    }
+  }
+
+  async function toggleDoneInList(listId: number, todo: Todo) {
     try {
       const updated = await api.update(todo.id, { done: !Boolean(todo.done) });
-      setTodos((xs) => xs.map((x) => (x.id === todo.id ? updated : x)));
+      setListTodos((m) => ({
+        ...m,
+        [listId]: (m[listId] || []).map((x) =>
+          x.id === todo.id ? updated : x
+        ),
+      }));
     } catch (e: any) {
       notifications.show({ color: "red", title: "Error", message: e.message });
     }
   }
 
-  async function removeTodo(todo: Todo) {
+  async function removeInList(listId: number, todo: Todo) {
     try {
       await api.remove(todo.id);
-      setTodos((xs) => xs.filter((x) => x.id !== todo.id));
+      setListTodos((m) => ({
+        ...m,
+        [listId]: (m[listId] || []).filter((x) => x.id !== todo.id),
+      }));
     } catch (e: any) {
       notifications.show({ color: "red", title: "Error", message: e.message });
     }
   }
 
-  async function editTitle(todo: Todo, nextTitle: string) {
-    const t = nextTitle.trim();
+  async function editTitleInList(listId: number, todo: Todo, next: string) {
+    const t = next.trim();
     if (!t || t === todo.title) return;
     try {
       const updated = await api.update(todo.id, { title: t });
-      setTodos((xs) => xs.map((x) => (x.id === todo.id ? updated : x)));
+      setListTodos((m) => ({
+        ...m,
+        [listId]: (m[listId] || []).map((x) =>
+          x.id === todo.id ? updated : x
+        ),
+      }));
     } catch (e: any) {
       notifications.show({ color: "red", title: "Error", message: e.message });
     }
   }
 
-  return (
-    <AppShell header={{ height: 56 }} padding="md">
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Text fw={600}>To-Do</Text>
-          <Group gap="lg">
-            <Text size="sm">All: {total}</Text>
-            <Text size="sm">Active: {activeCount}</Text>
-            <Text size="sm">Done: {doneCount}</Text>
-          </Group>
-        </Group>
-      </AppShell.Header>
-
-      <AppShell.Main>
-        <Container size="sm">
-          <Group align="end" wrap="nowrap">
-            <TextInput
-              style={{ flex: 1 }}
-              label="New Task"
-              placeholder="Task title"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addTodo();
-              }}
-            />
-            <Button onClick={addTodo} disabled={!newTitle.trim()}>
-              Add
-            </Button>
-          </Group>
-
-          <Group mb="sm">
-            <SegmentedControl
-              value={filter}
-              onChange={(v) => setFilter(v as Filter)}
-              data={[
-                { label: "All", value: "all" },
-                { label: "Active", value: "active" },
-                { label: "Done", value: "done" },
-              ]}
-            />
-          </Group>
-
-          {loading ? (
-            <Stack>
-              {[...Array(3)].map((_, i) => (
-                <Paper key={i} withBorder p="sm" radius="md">
-                  <Skeleton height={20} />
-                </Paper>
-              ))}
-            </Stack>
-          ) : visibleTodos.length === 0 ? (
-            <Text c="dimmed">No tasks for this filter.</Text>
-          ) : (
-            <Stack>
-              {visibleTodos.map((t) => (
-                <Paper key={t.id} withBorder p="sm" radius="md">
-                  <Group justify="space-between" align="center" wrap="nowrap">
-                    <Group align="center" gap="sm" wrap="nowrap">
-                      <Checkbox
-                        size="sm"
-                        checked={Boolean(t.done)}
-                        onChange={() => toggleDone(t)}
-                        aria-label="Toggle done"
-                        icon={() => null}
-                        styles={{
-                          body: {
-                            display: "inline-flex",
-                            alignItems: "center",
-                          },
-                          input: {
-                            backgroundColor: "transparent",
-                            "&:checked": { backgroundColor: "transparent" },
-                          },
-                        }}
-                      />
-                      <InlineEditable
-                        value={t.title}
-                        done={Boolean(t.done)}
-                        onSave={(v) => editTitle(t, v)}
-                      />
-                    </Group>
-
-                    <ActionIcon
-                      color="red"
-                      variant="light"
-                      onClick={() => removeTodo(t)}
-                      aria-label="Delete task"
-                    >
-                      <IconTrash size={18} />
-                    </ActionIcon>
-                  </Group>
-                </Paper>
-              ))}
-            </Stack>
-          )}
-        </Container>
-      </AppShell.Main>
-    </AppShell>
-  );
-}
-
-function InlineEditable({
-  value,
-  onSave,
-  done,
-}: {
-  value: string;
-  onSave: (v: string) => void;
-  done?: boolean;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(value);
-
-  useEffect(() => setVal(value), [value]);
-
-  if (!editing) {
-    return (
-      <span
-        style={{
-          cursor: "text",
-          textDecoration: done ? "line-through" : "none",
-          opacity: done ? 0.6 : 1,
-        }}
-        onClick={() => setEditing(true)}
-        title="Click to edit"
-      >
-        {value}
-      </span>
-    );
+  async function deleteList(id: number) {
+    try {
+      await api.lists.remove(id);
+      setLists((xs) => xs.filter((l) => l.id !== id));
+      setListTodos((m) => {
+        const { [id]: _removed, ...rest } = m;
+        return rest;
+      });
+    } catch (e: any) {
+      notifications.show({ color: "red", title: "Error", message: e.message });
+    }
   }
 
+  const allTodos = Object.values(listTodos).flat();
+  const total = allTodos.length;
+  const doneCount = allTodos.filter((t) => Boolean(t.done)).length;
+  const activeCount = total - doneCount;
+
   return (
-    <TextInput
-      value={val}
-      onChange={(e) => setVal(e.currentTarget.value)}
-      autoFocus
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          onSave(val);
-          setEditing(false);
-        }
-        if (e.key === "Escape") {
-          setVal(value);
-          setEditing(false);
-        }
-      }}
-      onBlur={() => {
-        onSave(val);
-        setEditing(false);
-      }}
-      styles={{
-        input: { height: 28, paddingTop: 2, paddingBottom: 2, minWidth: 200 },
-      }}
-    />
+    <>
+      <Global
+        styles={{
+          html: { height: "100%" },
+          body: {
+            margin: 0,
+            minHeight: "100%",
+            backgroundImage: `
+              linear-gradient(rgba(0, 0, 0, 0.85), rgba(68, 68, 68, 0.85)),
+              url(${bgImage})
+            `,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            backgroundAttachment: "fixed",
+          },
+          "#root": {
+            minHeight: "100%",
+            background: "transparent",
+          },
+        }}
+      />
+
+      <AppShell
+        header={{ height: 56 }}
+        padding="md"
+        styles={{
+          main: {
+            padding: "24px",
+          },
+        }}
+      >
+        <AppShell.Main>
+          <Group
+            align="flex-start"
+            gap="xl"
+            wrap="nowrap"
+            style={{
+              display: "flex",
+              flexWrap: "nowrap",
+              width: "100%",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+                width: 280,
+                flex: "0 0 280px",
+              }}
+            >
+              <SummaryCard
+                total={total}
+                active={activeCount}
+                done={doneCount}
+              />
+              <AddNewCard onAddList={addListWith} />
+            </div>
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Boards
+                lists={lists}
+                listTodos={listTodos}
+                perListDraft={perListDraft}
+                onPerListDraftChange={(id, v) =>
+                  setPerListDraft((s) => ({ ...s, [id]: v }))
+                }
+                onAddTodoToList={addTodoToList}
+                onToggleInList={toggleDoneInList}
+                onEditInList={editTitleInList}
+                onDeleteInList={removeInList}
+                onDeleteList={deleteList}
+                scrollToEndKey={scrollKey}
+              />
+            </div>
+          </Group>
+        </AppShell.Main>
+      </AppShell>
+    </>
   );
 }
 
