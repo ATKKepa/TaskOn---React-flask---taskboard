@@ -33,7 +33,6 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  // --- Yleiset TODO-päät (yhteensopiva App.tsx:n kanssa) ---
   list: () => request<Todo[]>('/api/todos'),
   create: (title: string) =>
     request<Todo>('/api/todos', { method: 'POST', body: JSON.stringify({ title }) }),
@@ -41,7 +40,6 @@ export const api = {
     request<Todo>(`/api/todos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   remove: (id: number) => request<void>(`/api/todos/${id}`, { method: 'DELETE' }),
 
-  // --- Listat (kanban) ---
 lists: {
   all: () => request<List[]>('/api/lists'),
   create: (name: string, color: string) =>
@@ -56,7 +54,6 @@ lists: {
 
 
 
-  // --- Listakohtaiset TODOt ---
   todosByList: {
     all: (listId: number) => request<Todo[]>(`/api/lists/${listId}/todos`),
     create: (listId: number, title: string) =>

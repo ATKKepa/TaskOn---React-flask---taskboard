@@ -24,7 +24,8 @@ export function SummaryCard({
   const theme = useMantineTheme();
   const colorScheme = useComputedColorScheme('light');
 
-  const bg = colorScheme === 'dark' ? theme.colors.dark[1] : theme.colors.gray[2];
+const bg = colorScheme === "dark" ? "#f7bd72ff" : "#f7f6f3";
+
 
   return (
     <Paper
