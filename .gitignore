@@ -1,32 +1,96 @@
-# Environment variables
+# =====================================================
+# 🧠  COMMON SETTINGS (Python + Node + Vite + Flask)
+# =====================================================
+
+# --- Environment variables ---
 .env
 .env.local
 .env.*.local
 
-# Python cache & build
+# =====================================================
+# 🐍 PYTHON / FLASK BACKEND
+# =====================================================
+
+# Byte-compiled / cache
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
 *.egg-info/
-dist/
+*.manifest
+*.spec
+
+# Build & distribution
 build/
+dist/
 
 # Virtual environments
 .venv/
-env/
 venv/
+env/
 
-# SQLite
+# Database
 *.db
+instance/
 
-# VSCode
-.vscode/
+# Uploaded files
+uploads/
+files/
+static/uploads/
+uploaded_files/
 
-# Logs
-*.log
-*.tmp
+# =====================================================
+# ⚛️ REACT / VITE FRONTEND
+# =====================================================
+
+# Node modules & build outputs
+node_modules/
+client/node_modules/
+dist/
+client/dist/
+dist-ssr/
+client/dist-ssr/
+
+# Local environment overrides
+*.local
+
+# =====================================================
+# 🧰 EDITORS & SYSTEM FILES
+# =====================================================
+
+# VS Code / JetBrains
+.vscode/*
+!.vscode/extensions.json
+.idea/
 
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Windows & swap files
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# =====================================================
+# 🪵 LOGS & TEMP FILES
+# =====================================================
+
+logs/
+*.log
+*.tmp
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =====================================================
+# ✅ OPTIONAL LOCAL ARTIFACTS
+# =====================================================
+
+# Example local data or cache folders (customize as needed)
+__pycache__/
+.cache/
