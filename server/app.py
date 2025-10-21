@@ -9,7 +9,8 @@ from pathlib import Path
 DB_PATH = Path(__file__).parent / "todo.db"
 BASE_DIR = Path(__file__).parent / "uploaded_files"
 UPLOAD_DIR = BASE_DIR / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
+
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTS = {".txt", ".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".pptx"}
 ALLOWED_MIME = {"text/plain", "application/pdf", "image/png", "image/jpeg",
