@@ -1,4 +1,4 @@
-import { AppShell, Group } from "@mantine/core";
+import { AppShell, Group, Stack, SimpleGrid, Box } from "@mantine/core";
 import { Global } from "@emotion/react";
 import bgImage from "./assets/background.jpg";
 import { notifications } from "@mantine/notifications";
@@ -8,12 +8,34 @@ import type { Todo, List } from "./types";
 import { Boards } from "./components/Boards";
 import { SummaryCard } from "./components/SummaryCard";
 import { AddNewCard } from "./components/AddNewCard";
+import FileGallery from "./components/FileGallery";
+import NotepadBoard from "./components/NotepadBoard";
 
 function App() {
   const [lists, setLists] = useState<List[]>([]);
   const [listTodos, setListTodos] = useState<Record<number, Todo[]>>({});
   const [perListDraft, setPerListDraft] = useState<Record<number, string>>({});
   const [scrollKey, setScrollKey] = useState(0);
+  const [notepadTodos, setNotepadTodos] = useState<Todo[]>([]);
+  const [noteDraft, setNoteDraft] = useState("");
+
+  const addToNotepad = () => {
+    const text = noteDraft.trim();
+    if (!text) return;
+    const t: Todo = { id: Date.now(), title: text, done: false, created_at: new Date().toISOString() };
+    setNotepadTodos((arr) => [t, ...arr]);
+    setNoteDraft("");
+  };
+
+  const toggleInNotepad = (todo: Todo) => {
+    setNotepadTodos((arr) =>
+      arr.map((x) => (x.id === todo.id ? { ...x, done: !x.done } : x))
+    );
+  };
+
+  const deleteInNotepad = (todo: Todo) => {
+    setNotepadTodos((arr) => arr.filter((x) => x.id !== todo.id));
+  };
 
   async function loadListsAndTodos() {
     try {
@@ -155,50 +177,70 @@ function App() {
         }}
       >
         <AppShell.Main>
-          <Group
-            align="flex-start"
-            gap="xl"
-            wrap="nowrap"
-            style={{
-              display: "flex",
-              flexWrap: "nowrap",
-              width: "100%",
-            }}
-          >
-            <div
+          <Stack gap="xl">
+            <Group
+              align="flex-start"
+              gap="xl"
+              wrap="nowrap"
               style={{
                 display: "flex",
-                flexDirection: "column",
-                gap: 16,
-                width: 280,
-                flex: "0 0 280px",
+                flexWrap: "nowrap",
+                width: "100%",
               }}
             >
-              <SummaryCard
-                total={total}
-                active={activeCount}
-                done={doneCount}
-              />
-              <AddNewCard onAddList={addListWith} />
-            </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  width: 280,
+                  flex: "0 0 280px",
+                }}
+              >
+                <SummaryCard
+                  total={total}
+                  active={activeCount}
+                  done={doneCount}
+                />
+                <AddNewCard onAddList={addListWith} />
+              </div>
 
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <Boards
-                lists={lists}
-                listTodos={listTodos}
-                perListDraft={perListDraft}
-                onPerListDraftChange={(id, v) =>
-                  setPerListDraft((s) => ({ ...s, [id]: v }))
-                }
-                onAddTodoToList={addTodoToList}
-                onToggleInList={toggleDoneInList}
-                onEditInList={editTitleInList}
-                onDeleteInList={removeInList}
-                onDeleteList={deleteList}
-                scrollToEndKey={scrollKey}
-              />
-            </div>
-          </Group>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Boards
+                  lists={lists}
+                  listTodos={listTodos}
+                  perListDraft={perListDraft}
+                  onPerListDraftChange={(id, v) =>
+                    setPerListDraft((s) => ({ ...s, [id]: v }))
+                  }
+                  onAddTodoToList={addTodoToList}
+                  onToggleInList={toggleDoneInList}
+                  onEditInList={editTitleInList}
+                  onDeleteInList={removeInList}
+                  onDeleteList={deleteList}
+                  scrollToEndKey={scrollKey}
+                />
+              </div>
+            </Group>
+            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
+              <Box w={{ md: "100%" }}>
+                <FileGallery />
+              </Box>
+
+              <Box w={{ md: "100%" }}>
+                <NotepadBoard
+                  title="Ideas / Notepad"
+                  todos={notepadTodos}
+                  draft={noteDraft}
+                  onDraftChange={setNoteDraft}
+                  onAdd={addToNotepad}
+                  onToggle={toggleInNotepad}
+                  onDelete={deleteInNotepad}
+                  listId="notepad"
+                />
+              </Box>
+            </SimpleGrid>
+          </Stack>
         </AppShell.Main>
       </AppShell>
     </>

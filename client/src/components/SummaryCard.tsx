@@ -49,10 +49,10 @@ const bg = colorScheme === "dark" ? "#f7bd72ff" : "#f7f6f3";
         }}
       >
         <Stack gap={6} align="flex-start">
-          <Title order={3} m={0}>To-Do</Title>
-          <Text size="sm" m={0}>ALL: {total}</Text>
-          <Text size="sm" m={0}>ACTIVE: {active}</Text>
-          <Text size="sm" m={0}>DONE: {done}</Text>
+          <Title order={3} m={0} c="dark.9">To-Do</Title>
+          <Text size="sm" m={0} c="dark.9">ALL: {total}</Text>
+          <Text size="sm" m={0} c="dark.9">ACTIVE: {active}</Text>
+          <Text size="sm" m={0} c="dark.9">DONE: {done}</Text>
         </Stack>
       </Box>
     </Paper>
