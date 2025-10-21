@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   ScrollArea,
   Group,
@@ -11,11 +11,12 @@ import {
   Button,
   useMantineTheme,
   alpha,
-  Popover,
-  Box,
+  useMantineColorScheme,
 } from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
 import type { List, Todo } from "../types";
+import TaskTitlePopover from "./TaskTitlePopover";
+import { useReducedMotion } from "@mantine/hooks";
 
 type Props = {
   lists: List[];
@@ -29,6 +30,93 @@ type Props = {
   onDeleteList: (listId: number) => void;
   scrollToEndKey: number;
 };
+
+type TodoCheckboxProps = {
+  id: string;
+  label: string;
+  checked: boolean;
+  indeterminate?: boolean;
+  description?: string;
+  error?: string;
+  onChange: () => void;
+};
+
+export default function TodoCheckbox({
+  id,
+  checked,
+  indeterminate,
+  description,
+  error,
+  onChange,
+}: TodoCheckboxProps) {
+  const { colorScheme } = useMantineColorScheme();
+  const prefersReducedMotion = useReducedMotion();
+
+  return (
+    <Checkbox
+      id={id}
+      checked={checked}
+      indeterminate={indeterminate}
+      onChange={onChange}
+      description={description}
+      error={error}
+      size="sm"
+      radius="md"
+      color="teal"
+      aria-checked={checked}
+      aria-invalid={!!error || undefined}
+      styles={(theme, state) => {
+        const ring = theme.colors.teal?.[3] ?? theme.primaryColor;
+        const checkedBg = theme.colors.teal?.[6];
+        const borderIdle = theme.colors.gray?.[5];
+        const bgIdle =
+          colorScheme === "dark" ? theme.colors.dark?.[6] : theme.white;
+
+        return {
+          root: {
+            paddingTop: 6,
+            paddingBottom: 6,
+            alignItems: "flex-start",
+          },
+          input: {
+            width: 18,
+            height: 18,
+            marginTop: 2,
+            borderColor: state.checked ? checkedBg : borderIdle,
+            backgroundColor: state.checked ? checkedBg : bgIdle,
+            transition: prefersReducedMotion
+              ? "none"
+              : "box-shadow 120ms, background-color 120ms, border-color 120ms",
+            "&:focusVisible": {
+              outline: "2px solid transparent",
+              boxShadow: `0 0 0 3px ${ring}`,
+            },
+          },
+          icon: {
+            color: theme.white,
+          },
+          label: {
+            fontSize: theme.fontSizes.sm,
+            lineHeight: 1.35,
+            userSelect: "none",
+            paddingLeft: 8,
+          },
+          description: {
+            marginTop: 2,
+            fontSize: theme.fontSizes.xs,
+            color:
+              colorScheme === "dark"
+                ? theme.colors.gray[4]
+                : theme.colors.gray[7],
+          },
+          error: {
+            marginTop: 4,
+          },
+        };
+      }}
+    />
+  );
+}
 
 export function Boards(props: Props) {
   const {
@@ -46,8 +134,6 @@ export function Boards(props: Props) {
   const theme = useMantineTheme();
 
   const endRef = useRef<HTMLDivElement>(null);
-
-  const [openedId, setOpenedId] = useState<number | null>(null);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -84,13 +170,9 @@ export function Boards(props: Props) {
     if (draggingRef.current) {
       e.preventDefault();
       e.stopPropagation();
-      draggingRef.current = false; 
+      draggingRef.current = false;
     }
   };
-
-  function isTruncated(el: HTMLElement) {
-    return el.scrollWidth > el.clientWidth;
-  }
 
   useEffect(() => {
     endRef.current?.scrollIntoView({
@@ -110,9 +192,6 @@ export function Boards(props: Props) {
           padding: "0 8px 12px 8px",
           scrollbarWidth: "none",
           msOverflowStyle: "none",
-          "&::-webkit-scrollbar": {
-            display: "none",
-          },
         },
       }}
       viewportRef={viewportRef}
@@ -150,10 +229,11 @@ export function Boards(props: Props) {
               border: "1px solid var(--mantine-color-gray-3)",
               borderRadius: 20,
               transition: "transform 180ms ease, box-shadow 180ms ease",
-              boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+              boxShadow: "0 2px 10px rgba(0, 0, 0, 1)",
               display: "flex",
               flexDirection: "column",
               minHeight: 220,
+              color: "black",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translateY(-4px)";
@@ -166,7 +246,7 @@ export function Boards(props: Props) {
           >
             <Divider
               label={
-                <Text fw={700} tt="uppercase" size="sm" c="dimmed" ta="center">
+                <Text fw={700} tt="uppercase" size="sm" c="dark.9" ta="center">
                   {l.name}
                 </Text>
               }
@@ -190,13 +270,14 @@ export function Boards(props: Props) {
                     flexDirection: "row",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    padding: "8px 10px",
-                    margin: "5px 5px",
+                    padding: "8px 10px 8px 10px",
                     borderRadius: 10,
                     background: "rgba(255,255,255,0.6)",
                     border: "1px solid var(--mantine-color-gray-3)",
                     transition: "background 120ms ease",
                     position: "relative",
+                    overflow: "hidden",
+                    minWidth: 0,
                   }}
                   onMouseEnter={(e) =>
                     (e.currentTarget.style.background =
@@ -206,82 +287,20 @@ export function Boards(props: Props) {
                     (e.currentTarget.style.background = "rgba(255,255,255,0.6)")
                   }
                 >
-                  <Checkbox
-                    size="xs"
-                    radius="xl"
+                  <TodoCheckbox
+                    id={`todo-${t.id}`}
+                    label={t.title}
                     checked={!!t.done}
+                    indeterminate={false}
                     onChange={() => onToggleInList(l.id, t)}
-                    aria-label="toggle done"
-                    styles={{
-                      input: { width: 16, height: 16 },
-                      icon: { width: 0, height: 0 },
-                    }}
                   />
-
                   <div style={{ flex: 1, minWidth: 0, margin: "0 8px" }}>
-                    <Popover
-                      withinPortal={false} 
-                      position="top-start"
-                      offset={8}
-                      withArrow
-                      shadow="md"
-                      zIndex={3}
-                    >
-                      <Popover.Target>
-                        <Box
-                          onClick={(e) => e.stopPropagation()}
-                          style={{
-                            flex: 1,
-                            minWidth: 0,
-                            margin: "0 8px",
-                            cursor: "pointer",
-                          }}
-                          onMouseDown={(e) => e.preventDefault()} 
-                          onClickCapture={(e) => {
-                            const el = e.currentTarget.querySelector(
-                              "[data-task-text]"
-                            ) as HTMLElement | null;
-                            if (!el || !isTruncated(el)) return;
-                            setOpenedId(openedId === t.id ? null : t.id);
-                          }}
-                        >
-                          <Text
-                            data-task-text
-                            size="sm"
-                            fw={t.done ? 400 : 500}
-                            style={{
-                              textDecoration: t.done ? "line-through" : "none",
-                              color: t.done
-                                ? "var(--mantine-color-gray-6)"
-                                : "inherit",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                            title={t.title}
-                          >
-                            {t.title}
-                          </Text>
-                        </Box>
-                      </Popover.Target>
-
-                      <Popover.Dropdown
-                        style={{
-                          background: "transparent",
-                          borderRadius: 12,
-                          padding: "10px 12px",
-                          maxWidth: "calc(100% - 24px)",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        <Text
-                          size="sm"
-                          style={{ whiteSpace: "pre-wrap", lineHeight: 1.4 }}
-                        >
-                          {t.title}
-                        </Text>
-                      </Popover.Dropdown>
-                    </Popover>
+                    <TaskTitlePopover
+                      title={t.title}
+                      done={!!t.done}
+                      requireTruncate={false}
+                      debug
+                    />
                   </div>
 
                   <ActionIcon
@@ -289,11 +308,11 @@ export function Boards(props: Props) {
                     radius="xl"
                     size="sm"
                     variant="light"
-                    color="gray"
+                    color="white"
                     styles={{
                       root: {
                         borderRadius: 999,
-                        background: alpha("#fff", 0.8),
+                        background: alpha("#96969663", 0.8),
                         border: `1px solid ${alpha(theme.black, 0.06)}`,
                         transition:
                           "transform 120ms ease, background 120ms ease, box-shadow 120ms ease",
@@ -301,7 +320,7 @@ export function Boards(props: Props) {
                     }}
                     onMouseEnter={(e) => {
                       (e.currentTarget as HTMLButtonElement).style.background =
-                        alpha("#fff", 1);
+                        alpha("#f8313163", 1);
                       (
                         e.currentTarget as HTMLButtonElement
                       ).style.boxShadow = `0 2px 10px ${alpha(
@@ -313,7 +332,7 @@ export function Boards(props: Props) {
                     }}
                     onMouseLeave={(e) => {
                       (e.currentTarget as HTMLButtonElement).style.background =
-                        alpha("#fff", 0.8);
+                        alpha("#96969663", 0.8);
                       (e.currentTarget as HTMLButtonElement).style.boxShadow =
                         "";
                       (e.currentTarget as HTMLButtonElement).style.transform =
@@ -326,9 +345,7 @@ export function Boards(props: Props) {
               ))}
             </Stack>
 
-            <div style={{ marginTop: "auto" }}>
-              <Divider variant="dashed" />
-
+            <div style={{ marginTop: "10px" }}>
               <div
                 style={{
                   display: "flex",
@@ -349,6 +366,7 @@ export function Boards(props: Props) {
                     padding: "12px 16px",
                     border: `1px solid ${alpha(theme.black, 0.08)}`,
                     background: alpha("#fff", 0.9),
+                    color: "black",
                     outline: "none",
                     fontSize: "0.95rem",
                     transition:
@@ -379,7 +397,7 @@ export function Boards(props: Props) {
                       borderRadius: 10,
                       fontWeight: 790,
                       letterSpacing: 0.2,
-                      background: alpha(l.color ?? theme.colors.gray[2], 0.9),
+                      background: alpha(l.color ?? theme.colors.gray[7], 0.9),
                       color: theme.black,
                       border: `2px solid ${alpha(theme.black, 0.3)}`,
                       boxShadow: `0 2px 8px ${alpha(theme.black, 0.08)}`,
@@ -434,6 +452,8 @@ export function Boards(props: Props) {
                       background: "transparent",
                       transition: "background 120ms ease, transform 120ms ease",
                       marginBottom: 10,
+                      borderColor: alpha(theme.colors.red[9], 0.5),
+                      borderWidth: 2,
                     },
                   }}
                   onMouseEnter={(e) => {

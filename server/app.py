@@ -1,10 +1,29 @@
 from flask import Flask, jsonify, request, g
+import os, hashlib, mimetypes
+from werkzeug.utils import secure_filename
+from flask import send_file, abort
+from db import init_files_table
 import sqlite3
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "todo.db"
+BASE_DIR = Path(__file__).parent / "uploaded_files"
+UPLOAD_DIR = BASE_DIR / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+ALLOWED_EXTS = {".txt", ".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".pptx"}
+ALLOWED_MIME = {"text/plain", "application/pdf", "image/png", "image/jpeg",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+               }
+
+MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
+
+
 
 # ------------------------
 # DB helperit
@@ -14,6 +33,14 @@ def get_db():
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
     return g.db
+
+def _sha256_bytes(buf: bytes) -> str:
+    return hashlib.sha256(buf).hexdigest()
+
+def _detect_mime(filename: str, fallback: str) -> str:
+    guessed = mimetypes.guess_type(filename)[0]
+    return guessed or fallback or "application/octet-stream"
+
 
 @app.teardown_appcontext
 def close_db(_):
@@ -68,11 +95,15 @@ def init_db():
     # oletuslista & nollaa listattomat inboxiin
     inbox_id = get_inbox_id(db)
     db.execute("UPDATE todos SET list_id = ? WHERE list_id IS NULL", (inbox_id,))
+    init_files_table(db)
     db.commit()
+    
 
 @app.before_request
 def ensure_db():
     init_db()
+
+    
 
 # ------------------------
 # Yleiset
@@ -100,7 +131,6 @@ def create_todo():
         return jsonify({"error": "Title is required"}), 400
 
     db = get_db()
-    # laita uudet globaalit todosit suoraan Inboxiin
     inbox_id = get_inbox_id(db)
     cur = db.execute(
         "INSERT INTO todos (title, done, list_id) VALUES (?, ?, ?)",
@@ -268,6 +298,110 @@ def create_todo_for_list(list_id):
         (new_id,),
     ).fetchone()
     return jsonify(dict(row)), 201
+
+
+
+# ------------------------
+# FILES
+# ------------------------
+
+@app.post("/api/files")
+def upload_file():
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files["file"]
+    if not file or not file.filename.strip():
+        return jsonify({"error": "Invalid filename"}), 400
+
+    safe_name = secure_filename(file.filename)
+    ext = os.path.splitext(safe_name)[1].lower()
+    if ext not in ALLOWED_EXTS:
+        return jsonify({"error": f"Extension not allowed: {ext}"}), 415
+
+    buf = file.read()
+    if not buf:
+        return jsonify({"error": "Empty file"}), 400
+
+    checksum = _sha256_bytes(buf)
+    mime = _detect_mime(safe_name, file.mimetype)
+    if mime not in ALLOWED_MIME:
+        return jsonify({"error": f"Unsupported MIME: {mime}"}), 415
+
+    size = len(buf)
+    disk_name = f"{checksum[:16]}_{safe_name}"
+    disk_path = UPLOAD_DIR / disk_name
+
+    if not disk_path.exists():
+        with open(disk_path, "wb") as out:
+            out.write(buf)
+
+    db = get_db()
+    try:
+        cur = db.execute(
+            "INSERT INTO files (name, mime, size, path, checksum) VALUES (?, ?, ?, ?, ?)",
+            (safe_name, mime, size, str(disk_path), checksum),
+        )
+        db.commit()
+        file_id = cur.lastrowid
+    except sqlite3.IntegrityError:
+        row = db.execute("SELECT id FROM files WHERE checksum=?", (checksum,)).fetchone()
+        file_id = int(row["id"]) if row else None
+
+    return jsonify({
+        "ok": True, "id": file_id, "name": safe_name, "mime": mime, "size": size, "checksum": checksum
+    }), 201
+
+
+@app.get("/api/files")
+def list_files():
+    rows = get_db().execute(
+        "SELECT id, name, mime, size, checksum, created_at FROM files ORDER BY created_at DESC"
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.get("/api/files/<int:file_id>")
+def download_file(file_id: int):
+    row = get_db().execute(
+        "SELECT name, mime, size, path, checksum FROM files WHERE id=?", (file_id,)
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+
+    etag = row["checksum"]
+    if request.headers.get("If-None-Match") == etag:
+        return ("", 304)
+
+    resp = send_file(
+        row["path"],
+        mimetype=row["mime"],
+        as_attachment=True,
+        download_name=row["name"],
+        conditional=True,
+    )
+    resp.headers["ETag"] = etag
+    resp.headers["Content-Length"] = str(row["size"])
+    return resp
+
+
+@app.delete("/api/files/<int:file_id>")
+def delete_file(file_id: int):
+    db = get_db()
+    row = db.execute("SELECT path FROM files WHERE id=?", (file_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+
+    path = row["path"]
+    db.execute("DELETE FROM files WHERE id=?", (file_id,))
+    db.commit()
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
+    return "", 204
+
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -74,7 +74,7 @@ const bg = colorScheme === "dark" ? "#b6e284ff" : "#f7f6f3";
         }}
       >
         <Stack align="center" justify="center" h={140} style={{ padding: 16 }}>
-          <Title order={4} m={0}>
+          <Title order={4} m={0} c="dark.9">
             Add new card
           </Title>
 
