@@ -5,7 +5,6 @@ import {
   Divider,
   Text,
   Group,
-  Checkbox,
   ActionIcon,
   Button,
   useMantineTheme,
@@ -66,7 +65,6 @@ export default function NotepadBoard({
   draft,
   onDraftChange,
   onAdd,
-  onToggle,
   onDelete,
   listId = "notepad",
   getItemId = (t) => `todo-${t.id}`,
@@ -119,18 +117,6 @@ export default function NotepadBoard({
                 >
                   <IconGripVertical size={16} />
                 </ActionIcon>
-
-                <Checkbox
-                  size="xs"
-                  radius="xl"
-                  checked={!!t.done}
-                  onChange={() => onToggle(t)}
-                  aria-label="toggle done"
-                  styles={{
-                    input: { width: 16, height: 16 },
-                    icon: { width: 0, height: 0 },
-                  }}
-                />
 
                 <div
                   style={{

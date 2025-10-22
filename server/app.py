@@ -53,16 +53,25 @@ def get_inbox_id(db: sqlite3.Connection) -> int:
     row = db.execute("SELECT id FROM lists WHERE name = ?", ("Inbox",)).fetchone()
     if row:
         return int(row["id"])
-    # varmistus: luodaan jos puuttuu
-    cur = db.execute("INSERT INTO lists (name, position, color) VALUES (?, ?, ?)", ("Inbox", 0, "#fffbe6"))
     db.commit()
-    return int(cur.lastrowid)
+    return
+
+def get_notepad_id(db: sqlite3.Connection) -> int:
+    row = db.execute("SELECT id FROM lists WHERE name = ?", ("Notepad",)).fetchone()
+    if row:
+        return int(row["id"])
+    db.commit()
+    return 
 
 def init_db():
     db = get_db()
     db.execute("PRAGMA foreign_keys = ON")
+    inbox_id = get_inbox_id(db)
+    notepad_id = get_notepad_id(db)
+    db.execute("UPDATE todos SET list_id = ? WHERE list_id IS NULL", (inbox_id,))
+    init_files_table(db)
+    db.commit()
 
-    # lists (sisältää colorin jos luodaan uutena)
     db.execute("""
       CREATE TABLE IF NOT EXISTS lists (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +82,6 @@ def init_db():
       );
     """)
 
-    # todos
     db.execute("""
       CREATE TABLE IF NOT EXISTS todos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -404,5 +412,44 @@ def delete_file(file_id: int):
     return "", 204
 
 
+#------------------------
+#NOTEPAD
+#------------------------
+
+
+@app.get("/api/notepad")
+def notepad_list():
+    db = get_db()
+    notepad_id = get_notepad_id(db)
+    rows = db.execute(
+        "SELECT id, title, done, created_at, list_id FROM todos WHERE list_id=? ORDER BY created_at DESC",
+        (notepad_id,),
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+@app.post("/api/notepad")
+def notepad_create():
+    data = request.get_json(force=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+    db = get_db()
+    notepad_id = get_notepad_id(db)
+    cur = db.execute(
+        "INSERT INTO todos (title, done, list_id) VALUES (?, ?, ?)",
+        (title, 0, notepad_id),
+    )
+    db.commit()
+    row = db.execute(
+        "SELECT id, title, done, created_at, list_id FROM todos WHERE id=?",
+        (cur.lastrowid,),
+    ).fetchone()
+    return jsonify(dict(row)), 201
+
+
+
 if __name__ == "__main__":
     app.run(debug=True)
+
+
+

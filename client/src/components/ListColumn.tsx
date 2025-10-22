@@ -8,11 +8,11 @@ import {
   ActionIcon,
   Divider,
   Modal,
-} from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { IconTrash } from '@tabler/icons-react';
-import type { Todo, List } from '../types';
-import { TodoItem } from './TodoItem';
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { IconTrash } from "@tabler/icons-react";
+import type { Todo, List } from "../types";
+import { TodoItem } from "./TodoItem";
 
 export function ListColumn({
   list,
@@ -35,14 +35,12 @@ export function ListColumn({
   onDelete: (t: Todo) => void;
   onDeleteList: () => void;
 }) {
-  // Modal auki/kiinni
   const [opened, { open, close }] = useDisclosure(false);
 
-  // Kun käyttäjä painaa Add modaalissa
   function handleAdd() {
     if (!newTitle.trim()) return;
-    onAdd();      // tämä kutsuu parentissa api.todosByList.create(...)
-    close();      // sulje modaali
+    onAdd();
+    close();
   }
 
   return (
@@ -52,7 +50,7 @@ export function ListColumn({
       radius="xl"
       style={{
         width: 320,
-        background: list.color || '#fffbe6',
+        background: list.color || "#fffbe6",
       }}
     >
       {/* Otsikko + roskis */}
@@ -78,12 +76,16 @@ export function ListColumn({
         {todos.map((t, i) => (
           <div key={t.id}>
             {i > 0 && <Divider my={6} />}
-            <TodoItem todo={t} onToggle={onToggle} onDelete={onDelete} onEdit={onEdit} />
+            <TodoItem
+              todo={t}
+              onToggle={onToggle}
+              onDelete={onDelete}
+              onEdit={onEdit}
+            />
           </div>
         ))}
       </Stack>
 
-      {/* Add task -nappi alareunaan */}
       <Group justify="center" mt="xl">
         <Button
           onClick={open}
@@ -96,7 +98,6 @@ export function ListColumn({
         </Button>
       </Group>
 
-      {/* Modal: syötä uusi taski */}
       <Modal
         opened={opened}
         onClose={close}
@@ -111,8 +112,8 @@ export function ListColumn({
             value={newTitle}
             onChange={(e) => onNewTitleChange(e.currentTarget.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAdd();
-              if (e.key === 'Escape') close();
+              if (e.key === "Enter") handleAdd();
+              if (e.key === "Escape") close();
             }}
             autoFocus
           />

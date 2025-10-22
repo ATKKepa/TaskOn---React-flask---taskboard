@@ -27,25 +27,36 @@ export function AddNewCard({
   const [color, setColor] = useState("#fffbe6");
 
   const SWATCHES = [
-    "#F4A261",
-    "#E76F51",
-    "#2A9D8F",
-    "#264653",
-    "#F1FAEE",
-    "#A8DADC",
-    "#457B9D",
-    "#1D3557",
-    "#FFE066",
-    "#D8F3DC",
-    "#95D5B2",
-    "#74C69D",
-    "#FFAFCC",
-    "#FFC8DD",
-    "#BDE0FE",
-    "#CDB4DB",
+    // Korostukset – hillityt mutta elävät
+    "#FF6B6B", // lämmin punainen
+    "#FFD166", // pehmeä keltainen
+    "#06D6A0", // mintunvihreä korostus
+    "#118AB2", // kirkas mutta ei huutava sininen
+    "#C77DFF", // laventeli / violetti korostus
+
+    // Pehmeät luonnolliset
+    "#F0EAD6", // vaalea beige
+    "#E9D8A6", // hiekankeltainen
+    "#C9ADA7", // ruusuharmaa
+    "#BEE1E6", // siniharmaa
+    "#A3B18A", // luonnonvihreä
+
+    // Tummat / harmaat neutraalit
+    "#2F3E46", // sinivihreään taittava tumma
+    "#3D405B", // sinertävänharmaa
+    "#4B4B4B", // neutraali tumma harmaa
+    "#5C5C5C", // keskisävyinen harmaa
+    "#6D6875", // pehmeä violettiin taittava harmaa
+    "#7D7461", // lämmin ruskeanharmaa
+
+    // Vaaleammat neutraalit ja pohjasävyt
+    "#DADADA", // vaalea harmaa
+    "#E5E5E5", // hyvin vaalea neutraali
+    "#EDF2F4", // sinertävä vaalea harmaa
+    "#F8F9FA", // lähes valkoinen, raikas
   ];
 
-const bg = colorScheme === "dark" ? "#b6e284ff" : "#f7f6f3";
+  const bg = colorScheme === "dark" ? "#858274ff" : "#f7f6f3";
 
   function handleCreate() {
     const n = name.trim();

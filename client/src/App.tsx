@@ -2,7 +2,7 @@ import { AppShell, Group, Stack, SimpleGrid, Box } from "@mantine/core";
 import { Global } from "@emotion/react";
 import bgImage from "./assets/background.jpg";
 import { notifications } from "@mantine/notifications";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { api } from "./api";
 import type { Todo, List } from "./types";
 import { SummaryCard } from "./components/SummaryCard";
@@ -10,14 +10,24 @@ import { AddNewCard } from "./components/AddNewCard";
 import FileGallery from "./components/FileGallery";
 import { Boards } from "./components/Boards";
 import NotepadBoard from "./components/NotepadBoard";
+import { arrayMove } from "@dnd-kit/sortable";
 
 import {
   DndContext,
   PointerSensor,
   useSensor,
   useSensors,
+  closestCenter,
+  type CollisionDetection,
+  MeasuringStrategy,
+  pointerWithin,
 } from "@dnd-kit/core";
-import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import type {
+  DragStartEvent,
+  DragEndEvent,
+  DragOverEvent,
+} from "@dnd-kit/core";
 import { listContainerId, parseListId } from "./helpers/dnd";
 
 function App() {
@@ -26,18 +36,26 @@ function App() {
   const [perListDraft, setPerListDraft] = useState<Record<number, string>>({});
   const [scrollKey, setScrollKey] = useState(0);
 
-  // Notepad
   const [notepadTodos, setNotepadTodos] = useState<Todo[]>([]);
   const [noteDraft, setNoteDraft] = useState("");
 
-  // DnD
+
+  const lastColMoveTs = useRef(0);
+  const COL_MOVE_THROTTLE = 140;
+  const lastRowMoveTs = useRef(0);
+  const ROW_MOVE_THROTTLE = 90;
   const sensors = useSensors(
-    // pienenkin liikkeen jälkeen aktivoituu, mutta Boardsissa on kahva, joten vaakaskrolli säilyy
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const collisionDetection: CollisionDetection = (args) => {
+    const hits = pointerWithin(args);
+    return hits.length ? hits : closestCenter(args);
+  };
+
   const [isDndActive, setIsDndActive] = useState(false);
 
-  // Kartta: missä containerissa on mitäkin id:itä (todo-<id>)
   const containers = useMemo(() => {
     const map: Record<string, string[]> = {};
     for (const l of lists) {
@@ -49,91 +67,248 @@ function App() {
     return map;
   }, [lists, listTodos, notepadTodos]);
 
-  const onDragStart = (_e: DragStartEvent) => setIsDndActive(true);
-  const onDragCancel = () => setIsDndActive(false);
+  const onDragOver = (e: DragOverEvent) => {
+    const a = String(e.active?.id ?? "");
+    const o = String(e.over?.id ?? "");
+    if (!a || !o || a === o) return;
+
+    if (a.startsWith("col-") && o.startsWith("col-")) {
+      const from = lists.findIndex((x) => `col-${x.id}` === a);
+      const to = lists.findIndex((x) => `col-${x.id}` === o);
+      if (from === -1 || to === -1 || from === to) return;
+
+      const now = performance.now();
+      if (now - lastColMoveTs.current < COL_MOVE_THROTTLE) return;
+      lastColMoveTs.current = now;
+
+      setLists((prev) => arrayMove(prev, from, to));
+      return;
+    }
+
+    const fromContainerId =
+      (e.active.data.current as any)?.sortable?.containerId ||
+      Object.entries(containers).find(([, ids]) => ids.includes(a))?.[0];
+
+    const toContainerId =
+      (e.over?.data.current as any)?.sortable?.containerId || o;
+
+    if (!fromContainerId || !toContainerId) return;
+
+    const fromList = parseListId(fromContainerId);
+    const toList = parseListId(toContainerId);
+
+    if (
+      fromContainerId === toContainerId &&
+      a.startsWith("todo-") &&
+      o.startsWith("todo-")
+    ) {
+      const listId = toList;
+      if (typeof listId !== "number") return;
+
+      const list = listTodos[listId] ?? [];
+      const fromIndex = list.findIndex((t) => `todo-${t.id}` === a);
+      const toIndex = list.findIndex((t) => `todo-${t.id}` === o);
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+
+      const now = performance.now();
+      if (now - lastRowMoveTs.current < ROW_MOVE_THROTTLE) return;
+      lastRowMoveTs.current = now;
+
+      setListTodos((prev) => ({
+        ...prev,
+        [listId]: arrayMove(prev[listId] ?? [], fromIndex, toIndex),
+      }));
+      return;
+    }
+
+    if (fromContainerId !== toContainerId && a.startsWith("todo-")) {
+      if (typeof fromList === "number" && typeof toList === "number") {
+        setListTodos((prev) => {
+          const fromArr = [...(prev[fromList] ?? [])];
+          const toArr = [...(prev[toList] ?? [])];
+          const idx = fromArr.findIndex((t) => `todo-${t.id}` === a);
+          if (idx === -1) return prev;
+          const [item] = fromArr.splice(idx, 1);
+
+          let insertAt = 0;
+          if (o.startsWith("todo-")) {
+            const j = toArr.findIndex((t) => `todo-${t.id}` === o);
+            insertAt = j >= 0 ? j : 0;
+          }
+          toArr.splice(insertAt, 0, item);
+
+          return { ...prev, [fromList]: fromArr, [toList]: toArr };
+        });
+        return;
+      }
+
+      if (fromList === "notepad" && typeof toList === "number") {
+        setNotepadTodos((prevNP) => {
+          const idx = prevNP.findIndex((t) => `todo-${t.id}` === a);
+          if (idx === -1) return prevNP;
+          const item = prevNP[idx];
+
+          setListTodos((prev) => {
+            const toArr = [...(prev[toList] ?? [])];
+            let insertAt = 0;
+            if (o.startsWith("todo-")) {
+              const j = toArr.findIndex((t) => `todo-${t.id}` === o);
+              insertAt = j >= 0 ? j : 0;
+            }
+            toArr.splice(insertAt, 0, item);
+            return { ...prev, [toList]: toArr };
+          });
+
+          const copy = [...prevNP];
+          copy.splice(idx, 1);
+          return copy;
+        });
+        return;
+      }
+    }
+  };
+
   const onDragEnd = async (e: DragEndEvent) => {
     setIsDndActive(false);
 
-    const activeId = e.active?.id as string | undefined; // "todo-123"
-    const overId = e.over?.id as string | undefined;
+    const activeId = String(e.active?.id ?? "");
+    const overId = String(e.over?.id ?? "");
     if (!activeId || !overId) return;
+
+    if (activeId.startsWith("col-") && overId.startsWith("col-")) {
+      try {
+        await Promise.all(
+          lists.map((l, idx) => api.lists.update(l.id, { position: idx }))
+        );
+      } catch {
+        const fresh = await api.lists.all();
+        setLists(fresh);
+      }
+      return;
+    }
 
     const fromContainerId =
       (e.active.data.current as any)?.sortable?.containerId ||
       Object.entries(containers).find(([, ids]) => ids.includes(activeId))?.[0];
-
     const toContainerId =
       (e.over?.data.current as any)?.sortable?.containerId || overId;
 
-    if (!fromContainerId || !toContainerId || fromContainerId === toContainerId)
-      return;
+    if (!fromContainerId || !toContainerId) return;
 
-    const fromList = parseListId(fromContainerId); // numero | 'notepad' | null
+    const fromList = parseListId(fromContainerId);
     const toList = parseListId(toContainerId);
-    if (fromList == null || toList == null) return;
 
-    const todoId = Number(String(activeId).replace("todo-", ""));
-    const sourceTodos =
-      fromList === "notepad"
-        ? notepadTodos
-        : (listTodos[fromList as number] ?? []);
-    const todo = sourceTodos.find((t) => t.id === todoId);
-    if (!todo) return;
-
-    // Notepad → Board
-    if (fromList === "notepad" && typeof toList === "number") {
-      await onCreateInList(toList, todo.title);
-      setNotepadTodos((arr) => arr.filter((x) => x.id !== todo.id));
+    if (
+      fromContainerId === toContainerId &&
+      activeId.startsWith("todo-") &&
+      overId.startsWith("todo-")
+    ) {
+      const listId = toList;
+      if (typeof listId !== "number") return;
+      const list = listTodos[listId] ?? [];
+      const fromIndex = list.findIndex((t) => `todo-${t.id}` === activeId);
+      const toIndex = list.findIndex((t) => `todo-${t.id}` === overId);
+      if (fromIndex >= 0 && toIndex >= 0 && fromIndex !== toIndex) {
+        setListTodos((prev) => ({
+          ...prev,
+          [listId]: arrayMove(prev[listId] ?? [], fromIndex, toIndex),
+        }));
+      }
       return;
     }
 
-    // Board → Board
-    if (typeof fromList === "number" && typeof toList === "number") {
-      await onMoveToList(todo, fromList, toList);
-      return;
-    }
-  };
+    if (fromContainerId !== toContainerId && activeId.startsWith("todo-")) {
+      const todoId = Number(activeId.replace("todo-", ""));
 
-  // Notepad-operaatiot
-  const addToNotepad = () => {
-    const text = noteDraft.trim();
-    if (!text) return;
-    const t: Todo = {
-      id: Date.now(),
-      title: text,
-      done: false,
-      created_at: new Date().toISOString(),
-    };
-    setNotepadTodos((arr) => [t, ...arr]);
-    setNoteDraft("");
-  };
-  const toggleInNotepad = (todo: Todo) => {
-    setNotepadTodos((arr) =>
-      arr.map((x) => (x.id === todo.id ? { ...x, done: !x.done } : x))
-    );
-  };
-  const deleteInNotepad = (todo: Todo) => {
-    setNotepadTodos((arr) => arr.filter((x) => x.id !== todo.id));
-  };
+      if (typeof fromList === "number" && typeof toList === "number") {
+        const todo = (listTodos[fromList] ?? []).find((t) => t.id === todoId);
+        if (todo) await onMoveToList(todo, fromList, toList);
+        return;
+      }
 
-  // Datahaku
-  async function loadListsAndTodos() {
-    try {
-      const ls = await api.lists.all();
-      setLists(ls);
-      const entries = await Promise.all(
-        ls.map(async (l) => [l.id, await api.todosByList.all(l.id)] as const)
-      );
-      setListTodos(Object.fromEntries(entries));
-    } catch (e: any) {
-      notifications.show({ color: "red", title: "Error", message: e.message });
-    }
+      if (fromList === "notepad" && typeof toList === "number") {
+  const todo = notepadTodos.find((t) => t.id === todoId);
+  if (!todo) return;
+
+  setNotepadTodos((prev) => prev.filter((x) => x.id !== todoId));
+  setListTodos((prev) => {
+    const toArr = [...(prev[toList] ?? [])];
+    return { ...prev, [toList]: [todo, ...toArr] };
+  });
+
+  try {
+    const updated = await api.notepad.moveToList(todo.id, toList); // PATCH { list_id }
+    setListTodos((prev) => {
+      const toArr = [...(prev[toList] ?? [])];
+      const idx = toArr.findIndex((t) => t.id === todoId);
+      if (idx >= 0) toArr[idx] = updated;
+      return { ...prev, [toList]: toArr };
+    });
+  } catch (e: any) {
+    notifications.show({ color: "red", title: "Move failed", message: e.message });
+    // Revert
+    setNotepadTodos((prev) => [todo, ...prev]);
+    setListTodos((prev) => {
+      const toArr = (prev[toList] ?? []).filter((t) => t.id !== todoId);
+      return { ...prev, [toList]: toArr };
+    });
   }
+  return;
+}
+    }
+  };
+
+  const addToNotepad = async () => {
+  const text = noteDraft.trim();
+  if (!text) return;
+  try {
+    const created = await api.notepad.create(text);
+    setNotepadTodos((arr) => [created, ...arr]);
+    setNoteDraft("");
+  } catch (e: any) {
+    notifications.show({ color: "red", title: "Error", message: e.message });
+  }
+};
+
+const toggleInNotepad = async (todo: Todo) => {
+  try {
+    const updated = await api.notepad.toggle(todo.id, !Boolean(todo.done));
+    setNotepadTodos((arr) => arr.map((x) => (x.id === todo.id ? updated : x)));
+  } catch (e: any) {
+    notifications.show({ color: "red", title: "Error", message: e.message });
+  }
+};
+
+const deleteInNotepad = async (todo: Todo) => {
+  try {
+    await api.notepad.remove(todo.id);
+    setNotepadTodos((arr) => arr.filter((x) => x.id !== todo.id));
+  } catch (e: any) {
+    notifications.show({ color: "red", title: "Error", message: e.message });
+  }
+};
+
+
+  async function loadListsAndTodos() {
+  try {
+    const ls = await api.lists.all();
+    const np = await api.notepad.all();             
+    setLists(ls);
+
+    const entries = await Promise.all(
+      ls.map(async (l) => [l.id, await api.todosByList.all(l.id)] as const)
+    );
+    setListTodos(Object.fromEntries(entries));
+    setNotepadTodos(np);                            
+  } catch (e: any) {
+    notifications.show({ color: "red", title: "Error", message: e.message });
+  }
+}
+
   useEffect(() => {
     loadListsAndTodos();
   }, []);
 
-  // Listat & todo-operaatiot
   async function addListWith(name: string, color: string) {
     try {
       const created = await api.lists.create(name, color);
@@ -211,7 +386,6 @@ function App() {
     }
   }
 
-  // DnD-siirrot
   async function onMoveToList(
     todo: Todo,
     fromListId: number,
@@ -224,11 +398,6 @@ function App() {
       return { ...m, [fromListId]: from, [toListId]: to };
     });
   }
-  async function onCreateInList(listId: number, title: string) {
-    const created = await api.todosByList.create(listId, title);
-    setListTodos((m) => ({ ...m, [listId]: [created, ...(m[listId] ?? [])] }));
-    return created;
-  }
 
   const allTodos = Object.values(listTodos).flat();
   const total = allTodos.length;
@@ -238,23 +407,35 @@ function App() {
   return (
     <>
       <Global
-        styles={{
-          html: { height: "100%" },
-          body: {
-            margin: 0,
-            minHeight: "100%",
-            backgroundImage: `
-              linear-gradient(rgba(0, 0, 0, 0.85), rgba(68, 68, 68, 0.85)),
-              url(${bgImage})
-            `,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-            backgroundAttachment: "fixed",
-          },
-          "#root": { minHeight: "100%", background: "transparent" },
-        }}
-      />
+  styles={{
+    html: { height: "100%" },
+    body: {
+      margin: 0,
+      minHeight: "100%",
+      position: "relative",
+      overflow: "hidden",
+      "&::before": {
+        content: '""',
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundImage: `
+          linear-gradient(rgba(0, 0, 0, 0.85), rgba(88, 88, 88, 0.91)),
+          url(${bgImage})
+        `,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        filter: "blur(8px)",
+        zIndex: -1,
+      },
+    },
+    "#root": { minHeight: "100%", background: "transparent" },
+  }}
+/>
+
 
       <AppShell
         header={{ height: 56 }}
@@ -265,9 +446,27 @@ function App() {
           <Stack gap="xl">
             <DndContext
               sensors={sensors}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onDragCancel={onDragCancel}
+              collisionDetection={collisionDetection}
+              measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+              modifiers={
+                activeId?.startsWith("col-")
+                  ? [restrictToHorizontalAxis]
+                  : undefined
+              }
+              onDragStart={(e: DragStartEvent) => {
+                setActiveId(String(e.active.id));
+                setIsDndActive(true);
+              }}
+              onDragOver={onDragOver}
+              onDragEnd={(e: DragEndEvent) => {
+                setActiveId(null);
+                setIsDndActive(false);
+                onDragEnd(e);
+              }}
+              onDragCancel={() => {
+                setActiveId(null);
+                setIsDndActive(false);
+              }}
             >
               <Group
                 align="flex-start"
@@ -275,7 +474,6 @@ function App() {
                 wrap="nowrap"
                 style={{ display: "flex", flexWrap: "nowrap", width: "100%" }}
               >
-                {/* Vasen sivupaneeli */}
                 <div
                   style={{
                     display: "flex",
@@ -310,6 +508,7 @@ function App() {
                     dndEnabled
                     containerIdForList={(id) => listContainerId(id)}
                     dragScrollDisabled={isDndActive}
+                    isDndActive={isDndActive}
                   />
                 </div>
               </Group>

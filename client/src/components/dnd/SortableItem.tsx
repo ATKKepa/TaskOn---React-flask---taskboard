@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Group, Checkbox, ActionIcon } from "@mantine/core";
+import { Group, ActionIcon } from "@mantine/core";
 import { IconGripVertical, IconTrash } from "@tabler/icons-react";
 import TaskTitlePopover from "../TaskTitlePopover";
 import type { Todo } from "../../types";
@@ -11,7 +11,7 @@ type Props = {
   onDelete?: (t: Todo) => void;
 };
 
-export default function SortableItem({ todo, onToggle, onDelete }: Props) {
+export default function SortableItem({ todo, onDelete }: Props) {
   const {
     setNodeRef,
     attributes,
@@ -52,13 +52,6 @@ export default function SortableItem({ todo, onToggle, onDelete }: Props) {
       >
         <IconGripVertical size={16} />
       </ActionIcon>
-
-      <Checkbox
-        size="xs"
-        checked={!!todo.done}
-        onChange={() => onToggle?.(todo)}
-        aria-label="toggle done"
-      />
 
       <div
         style={{

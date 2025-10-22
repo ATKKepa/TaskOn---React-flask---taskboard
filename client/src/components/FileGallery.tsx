@@ -173,10 +173,10 @@ export default function FileGallery({
           >
             <Group justify="space-between" p="md" wrap="wrap">
               <Stack gap={2}>
-                <Text fw={600}>Lataa tiedostoja</Text>
+                <Text fw={600}>Upload files</Text>
                 <Text c="dimmed" size="sm">
-                  Raahaa ja pudota (PDF, PNG, DOCX, XLSX, TXT) tai käytä
-                  latauspainiketta.
+                  Drag and drop (PDF, PNG, DOCX, XLSX, TXT) or use the upload
+                  button.
                 </Text>
               </Stack>
               <Group gap="xs">
@@ -244,7 +244,7 @@ export default function FileGallery({
 
       <Stack>
         <Group justify="space-between">
-          <Text fw={600}>Tiedostot</Text>
+          <Text fw={600}>Files</Text>
           <Badge variant="light">{files.length}</Badge>
         </Group>
 
@@ -290,7 +290,7 @@ export default function FileGallery({
                 </Stack>
                 <Group justify="space-between" style={{ marginTop: "auto" }}>
                   <Group gap={6}>
-                    <Tooltip label="Lataa">
+                    <Tooltip label="Download">
                       <ActionIcon
                         variant="light"
                         onClick={() => downloadById(f.id, f.name)}
@@ -299,7 +299,7 @@ export default function FileGallery({
                       </ActionIcon>
                     </Tooltip>
                   </Group>
-                  <Tooltip label="Poista">
+                  <Tooltip label="Delete">
                     <ActionIcon
                       color="red"
                       variant="light"
