@@ -12,9 +12,16 @@ import {
   useComputedColorScheme,
   alpha,
 } from "@mantine/core";
-import { IconTrash, IconPlus } from "@tabler/icons-react";
+import { IconTrash, IconGripVertical } from "@tabler/icons-react";
 import TaskTitlePopover from "./TaskTitlePopover";
 import type { Todo } from "../types";
+
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
+import RowSortable from "./dnd/RowSortable";
 
 type Props = {
   title?: string;
@@ -25,9 +32,33 @@ type Props = {
   onToggle: (t: Todo) => void;
   onDelete: (t: Todo) => void;
 
-  listId?: string | number; 
+  listId?: string | number;
   getItemId?: (t: Todo) => string | number;
+  dndEnabled?: boolean;
 };
+
+function DropZone({
+  id,
+  children,
+}: {
+  id: string | number;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        minHeight: 12,
+        outline: isOver ? "2px dashed rgba(0,0,0,0.15)" : "none",
+        outlineOffset: 4,
+        borderRadius: 8,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function NotepadBoard({
   title = "Notepad",
@@ -39,11 +70,147 @@ export default function NotepadBoard({
   onDelete,
   listId = "notepad",
   getItemId = (t) => `todo-${t.id}`,
+  dndEnabled = true,
 }: Props) {
   const theme = useMantineTheme();
   const scheme = useComputedColorScheme("light");
   const inputRef = useRef<HTMLInputElement>(null);
   const dark = scheme === "dark";
+
+  const containerId = String(listId);
+  const items = todos.map((t) => String(getItemId(t)));
+
+  const ListBody = (
+    <Stack gap={6} style={{ flex: 1, overflowY: "auto", paddingTop: 8 }}>
+      {todos.map((t) =>
+        dndEnabled ? (
+          <RowSortable key={String(getItemId(t))} id={String(getItemId(t))}>
+            {({ setHandleProps, style, setNodeRef }) => (
+              <Group
+                ref={setNodeRef}
+                align="center"
+                wrap="nowrap"
+                style={{
+                  ...style,
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 12px",
+                  margin: "5px 5px",
+                  borderRadius: 12,
+                  background: dark
+                    ? alpha(theme.colors.dark[1], 0.55)
+                    : "rgba(255,255,255,0.8)",
+                  border: dark
+                    ? `1px solid ${alpha(theme.colors.dark[3], 0.9)}`
+                    : `1px solid var(--mantine-color-gray-3)`,
+                  transition: "background 120ms ease, box-shadow 120ms ease",
+                  overflow: "hidden",
+                  minWidth: 0,
+                  color: dark ? theme.colors.gray[1] : "black",
+                }}
+              >
+                <ActionIcon
+                  variant="subtle"
+                  aria-label="Drag to move"
+                  {...setHandleProps({ style: { cursor: "grab" } })}
+                  style={{ marginRight: 4, flexShrink: 0 }}
+                >
+                  <IconGripVertical size={16} />
+                </ActionIcon>
+
+                <Checkbox
+                  size="xs"
+                  radius="xl"
+                  checked={!!t.done}
+                  onChange={() => onToggle(t)}
+                  aria-label="toggle done"
+                  styles={{
+                    input: { width: 16, height: 16 },
+                    icon: { width: 0, height: 0 },
+                  }}
+                />
+
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    margin: "0 8px",
+                    paddingRight: 28,
+                    overflow: "hidden",
+                  }}
+                >
+                  <TaskTitlePopover title={t.title} done={!!t.done} />
+                </div>
+
+                <ActionIcon
+                  onClick={() => onDelete(t)}
+                  radius="xl"
+                  size="sm"
+                  variant="subtle"
+                  aria-label="delete task"
+                  color="red"
+                  style={{ flexShrink: 0 }}
+                >
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Group>
+            )}
+          </RowSortable>
+        ) : (
+          <Group
+            key={t.id}
+            align="center"
+            wrap="nowrap"
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "10px 12px",
+              margin: "5px 5px",
+              borderRadius: 12,
+              background: dark
+                ? alpha(theme.colors.dark[1], 0.55)
+                : "rgba(255,255,255,0.8)",
+              border: dark
+                ? `1px solid ${alpha(theme.colors.dark[3], 0.9)}`
+                : `1px solid var(--mantine-color-gray-3)`,
+              transition: "background 120ms ease, box-shadow 120ms ease",
+              overflow: "hidden",
+              minWidth: 0,
+              color: dark ? theme.colors.gray[1] : "black",
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                margin: "0 8px",
+                paddingRight: 28,
+                overflow: "hidden",
+              }}
+            >
+              <TaskTitlePopover title={t.title} done={!!t.done} />
+            </div>
+
+            <ActionIcon
+              onClick={() => onDelete(t)}
+              radius="xl"
+              size="sm"
+              variant="subtle"
+              aria-label="delete task"
+              color="red"
+              style={{ flexShrink: 0 }}
+            >
+              <IconTrash size={14} />
+            </ActionIcon>
+          </Group>
+        )
+      )}
+    </Stack>
+  );
 
   return (
     <Paper
@@ -63,7 +230,7 @@ export default function NotepadBoard({
         flexDirection: "column",
         minHeight: 480,
       }}
-      data-drop-id={listId}
+      data-drop-id={containerId}
       aria-label={`${title} board`}
     >
       <Divider
@@ -81,81 +248,32 @@ export default function NotepadBoard({
         }
       />
 
-      <Stack gap={6} style={{ flex: 1, overflowY: "auto", paddingTop: 8 }}>
-        {todos.map((t) => (
-          <Group
-            key={t.id}
-            align="center"
-            wrap="nowrap"
-            data-draggable-id={getItemId(t)}
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "10px 12px",
-              margin: "5px 5px",
-              borderRadius: 12,
-              background: dark
-                ? alpha(theme.colors.dark[1], 0.55)
-                : "rgba(255,255,255,0.8)",
-              border: dark
-                ? `1px solid ${alpha(theme.colors.dark[3], 0.9)}`
-                : `1px solid var(--mantine-color-gray-3)`,
-              transition: "background 120ms ease, box-shadow 120ms ease",
-              overflow: "hidden",
-              minWidth: 0,
-              color: "white",
-            }}
-          >
-            <Checkbox
-              size="xs"
-              radius="xl"
-              checked={!!t.done}
-              onChange={() => onToggle(t)}
-              aria-label="toggle done"
-              styles={{
-                input: { width: 16, height: 16 },
-                icon: { width: 0, height: 0 },
-              }}
-            />
+      {dndEnabled ? (
+        <SortableContext
+          id={containerId}
+          items={items}
+          strategy={verticalListSortingStrategy}
+        >
+          <DropZone id={containerId}>{ListBody}</DropZone>
+        </SortableContext>
+      ) : (
+        ListBody
+      )}
 
-            <div
-              style={{
-                flex: 1,
-                minWidth: 0,
-                margin: "0 8px",
-                overflow: "hidden",
-              }}
-            >
-              <TaskTitlePopover title={t.title} done={!!t.done} />
-            </div>
-
-            <ActionIcon
-              onClick={() => onDelete(t)}
-              radius="xl"
-              size="sm"
-              variant="subtle"
-              aria-label="delete task"
-              color="red"
-              style={{ flexShrink: 0 }}
-            >
-              <IconTrash size={14} />
-            </ActionIcon>
-          </Group>
-        ))}
-      </Stack>
-
-      <div style={{ marginTop: 10 }}>
-        <Group justify="center" align="center" gap={10} mt={8}>
+      <div
+        style={{
+          marginTop: "auto",
+          padding: "10px 12px",
+        }}
+      >
+        <Group justify="center" align="center" gap={10}>
           <input
             ref={inputRef as any}
             value={draft}
             onChange={(e) => onDraftChange(e.target.value)}
-            placeholder="Kirjoita idea/tehtävä ja paina Enter…"
+            placeholder="Type an idea/task and press Add"
             style={{
-              flex: 1,
-              maxWidth: 520,
+              width: "min(520px, 100%)",
               borderRadius: 999,
               padding: "12px 16px",
               border: `1px solid ${alpha(theme.black, 0.08)}`,
@@ -164,18 +282,9 @@ export default function NotepadBoard({
               outline: "none",
               fontSize: "0.95rem",
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") onAdd();
-            }}
+            onKeyDown={(e) => e.key === "Enter" && onAdd()}
           />
-
-          <Button
-            radius="xl"
-            size="sm"
-            leftSection={<IconPlus size={16} />}
-            onClick={onAdd}
-            color="green"
-          >
+          <Button radius="xl" size="sm" onClick={onAdd} color="green">
             Add
           </Button>
         </Group>
