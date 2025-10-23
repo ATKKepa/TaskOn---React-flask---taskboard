@@ -18,9 +18,8 @@ TaskOn is a full-stack productivity workspace that pairs a Flask API with a Reac
 
 ![TaskOn Quick Tour](docs/taskon-fast.gif)
 
-> Tip: drop your fast GIF at `docs/taskon-fast.gif` (or update the path above) to keep the README self-contained.
 
-- **Full walkthrough (40 s):** [Watch the extended demo](https://example.com/taskon-full-demo) – replace the link with your hosted MP4/GIF (Loom, YouTube, GitHub asset, etc.).
+- **Full walkthrough (40 s):** [Watch the extended demo](docs/taskon-demo.mp4) 
 
 ## Features
 
