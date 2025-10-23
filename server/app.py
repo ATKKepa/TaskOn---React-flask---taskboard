@@ -6,6 +6,9 @@ from db import init_files_table
 import sqlite3
 from pathlib import Path
 
+# ------------------------
+# Constants and Configuration
+# ------------------------
 DB_PATH = Path(__file__).parent / "todo.db"
 BASE_DIR = Path(__file__).parent / "uploaded_files"
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -24,10 +27,8 @@ MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
-
-
 # ------------------------
-# DB helperit
+# Database Helpers
 # ------------------------
 def get_db():
     if "db" not in g:
@@ -41,7 +42,6 @@ def _sha256_bytes(buf: bytes) -> str:
 def _detect_mime(filename: str, fallback: str) -> str:
     guessed = mimetypes.guess_type(filename)[0]
     return guessed or fallback or "application/octet-stream"
-
 
 @app.teardown_appcontext
 def close_db(_):
@@ -60,15 +60,26 @@ def get_notepad_id(db: sqlite3.Connection) -> int:
     row = db.execute("SELECT id FROM lists WHERE name = ?", ("Notepad",)).fetchone()
     if row:
         return int(row["id"])
+    cur = db.execute(
+        "INSERT INTO lists (name, position, color, is_hidden) VALUES (?, ?, ?, ?)",
+        ("Notepad", 1, "#e6fffb", 1),
+    )
     db.commit()
-    return 
+    return int(cur.lastrowid)
 
+
+def fetch_list_id(db, name: str) -> int | None:
+    row = db.execute("SELECT id FROM lists WHERE name = ?", (name,)).fetchone()
+    return int(row["id"]) if row else None
+
+# ------------------------
+# Database Initialization and Migration
+# ------------------------
 def init_db():
     db = get_db()
     db.execute("PRAGMA foreign_keys = ON")
-    inbox_id = get_inbox_id(db)
-    notepad_id = get_notepad_id(db)
-    db.execute("UPDATE todos SET list_id = ? WHERE list_id IS NULL", (inbox_id,))
+    migrate_schema(db)
+    backfill_data(db)
     init_files_table(db)
     db.commit()
 
@@ -92,44 +103,116 @@ def init_db():
       );
     """)
 
-    # migraatiot vanhaan kantaan
-    cols_todos = [r[1] for r in db.execute("PRAGMA table_info(todos)")]
-    if "list_id" not in cols_todos:
-        db.execute("ALTER TABLE todos ADD COLUMN list_id INTEGER REFERENCES lists(id)")
+def ensure_default_lists_once(db):
+    cnt = db.execute("SELECT COUNT(*) AS c FROM lists").fetchone()["c"]
+    if cnt == 0:
+        db.execute(
+            "INSERT INTO lists (name, position, color, is_hidden) VALUES (?, ?, ?, ?)",
+            ("Inbox", 0, "#fffbe6", 0),
+        )
+        db.execute(
+            "INSERT INTO lists (name, position, color, is_hidden) VALUES (?, ?, ?, ?)",
+            ("Notepad", 1, "#e6fffb", 1), 
+        )
+        db.commit()
+
+
+def migrate_schema(db):
+    db.execute("""
+      CREATE TABLE IF NOT EXISTS lists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        color TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        is_hidden INTEGER NOT NULL DEFAULT 0
+      );
+    """)
+    db.execute("""
+      CREATE TABLE IF NOT EXISTS todos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        done INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        list_id INTEGER REFERENCES lists(id),
+        position INTEGER NOT NULL DEFAULT 0
+      );
+    """)
 
     cols_lists = [r[1] for r in db.execute("PRAGMA table_info(lists)")]
     if "color" not in cols_lists:
         db.execute("ALTER TABLE lists ADD COLUMN color TEXT")
+    if "is_hidden" not in cols_lists:
+        db.execute("ALTER TABLE lists ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0")
 
-    # oletuslista & nollaa listattomat inboxiin
-    inbox_id = get_inbox_id(db)
-    db.execute("UPDATE todos SET list_id = ? WHERE list_id IS NULL", (inbox_id,))
-    init_files_table(db)
+    cols_todos = [r[1] for r in db.execute("PRAGMA table_info(todos)")]
+    if "list_id" not in cols_todos:
+        db.execute("ALTER TABLE todos ADD COLUMN list_id INTEGER REFERENCES lists(id)")
+    if "position" not in cols_todos:
+        db.execute("ALTER TABLE todos ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+
     db.commit()
-    
+
+def backfill_data(db):
+    ensure_default_lists_once(db)
+
+    null_cnt = db.execute("SELECT COUNT(*) AS c FROM todos WHERE list_id IS NULL").fetchone()["c"]
+    if null_cnt > 0:
+        inbox_id = fetch_list_id(db, "Inbox")
+        if inbox_id is None:
+            db.execute(
+                "INSERT INTO lists (name, position, color) VALUES (?, ?, ?)",
+                ("Inbox", 0, "#fffbe6"),
+            )
+            db.execute("UPDATE lists SET is_hidden = 1 WHERE name = 'Notepad'")
+            db.commit()
+            inbox_id = fetch_list_id(db, "Inbox")
+        db.execute("UPDATE todos SET list_id = ? WHERE list_id IS NULL", (inbox_id,))
+
+    list_ids = [int(r["id"]) for r in db.execute("SELECT id FROM lists").fetchall()]
+    for lid in list_ids:
+        rows = db.execute(
+            "SELECT id FROM todos WHERE list_id = ? ORDER BY created_at DESC, id DESC",
+            (lid,),
+        ).fetchall()
+        for pos, r in enumerate(rows):
+            db.execute("UPDATE todos SET position = ? WHERE id = ?", (pos, int(r["id"])))
+    db.commit()
+
+def get_or_create_notepad_id(db: sqlite3.Connection) -> int:
+    row = db.execute("SELECT id FROM lists WHERE name = 'Notepad'").fetchone()
+    if row:
+        return int(row["id"])
+    cur = db.execute(
+        "INSERT INTO lists (name, position, color, is_hidden) VALUES (?, ?, ?, ?)",
+        ("Notepad", 1, "#e6fffb", 1),
+    )
+    db.commit()
+    return int(cur.lastrowid)
+
+
 
 @app.before_request
 def ensure_db():
     init_db()
 
-    
-
 # ------------------------
-# Yleiset
+# General Routes
 # ------------------------
 @app.get("/api/health")
 def health():
     return jsonify({"status": "ok"})
 
 # ------------------------
-# TODOS (yleiset reitit)
+# Todo Routes (General)
 # ------------------------
 @app.get("/api/todos")
 def list_todos():
     db = get_db()
     rows = db.execute(
-        "SELECT id, title, done, created_at, list_id FROM todos ORDER BY created_at DESC"
-    ).fetchall()
+    "SELECT id, title, done, created_at, list_id, position "
+    "FROM todos ORDER BY list_id, position ASC, created_at DESC"
+).fetchall()
     return jsonify([dict(r) for r in rows])
 
 @app.post("/api/todos")
@@ -140,18 +223,23 @@ def create_todo():
         return jsonify({"error": "Title is required"}), 400
 
     db = get_db()
-    inbox_id = get_inbox_id(db)
+    inbox_id = fetch_list_id(db, "Inbox")
+    if inbox_id is None:
+        ensure_default_lists_once(db)
+        inbox_id = fetch_list_id(db, "Inbox")
+
+    db.execute("UPDATE todos SET position = position + 1 WHERE list_id = ?", (inbox_id,))
     cur = db.execute(
-        "INSERT INTO todos (title, done, list_id) VALUES (?, ?, ?)",
+        "INSERT INTO todos (title, done, list_id, position) VALUES (?, ?, ?, 0)",
         (title, 0, inbox_id),
     )
     db.commit()
-    new_id = cur.lastrowid
     row = db.execute(
-        "SELECT id, title, done, created_at, list_id FROM todos WHERE id = ?",
-        (new_id,),
+        "SELECT id, title, done, created_at, list_id, position FROM todos WHERE id = ?",
+        (cur.lastrowid,),
     ).fetchone()
     return jsonify(dict(row)), 201
+
 
 @app.patch("/api/todos/<int:todo_id>")
 def update_todo(todo_id):
@@ -168,7 +256,6 @@ def update_todo(todo_id):
         fields.append("done = ?")
         values.append(done_val)
 
-    # mahdollistaa kortin siirron listasta toiseen
     if "list_id" in data and data.get("list_id") is not None:
         fields.append("list_id = ?")
         values.append(int(data.get("list_id")))
@@ -199,15 +286,18 @@ def delete_todo(todo_id):
     return "", 204
 
 # ------------------------
-# LISTAT
+# List Routes
 # ------------------------
 @app.get("/api/lists")
 def list_lists():
     db = get_db()
     rows = db.execute(
-        "SELECT id, name, position, color, created_at FROM lists ORDER BY position, id"
+        "SELECT id, name, position, color, created_at "
+        "FROM lists WHERE COALESCE(is_hidden, 0) = 0 "
+        "ORDER BY position, id"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
+
 
 @app.post("/api/lists")
 def create_list():
@@ -276,14 +366,14 @@ def delete_list(list_id):
     return "", 204
 
 # ------------------------
-# TODOS listakohtaisesti
+# Todo Routes (List-Specific)
 # ------------------------
 @app.get("/api/lists/<int:list_id>/todos")
 def list_todos_in_list(list_id):
     db = get_db()
     rows = db.execute(
-        "SELECT id, title, done, created_at, list_id "
-        "FROM todos WHERE list_id = ? ORDER BY created_at DESC",
+        "SELECT id, title, done, created_at, list_id, position "
+        "FROM todos WHERE list_id = ? ORDER BY position ASC, created_at DESC",
         (list_id,),
     ).fetchall()
     return jsonify([dict(r) for r in rows])
@@ -296,24 +386,49 @@ def create_todo_for_list(list_id):
         return jsonify({"error": "Title is required"}), 400
 
     db = get_db()
+    db.execute("UPDATE todos SET position = position + 1 WHERE list_id = ?", (list_id,))
     cur = db.execute(
-        "INSERT INTO todos (title, done, list_id) VALUES (?, ?, ?)",
+        "INSERT INTO todos (title, done, list_id, position) VALUES (?, ?, ?, 0)",
         (title, 0, list_id),
     )
     db.commit()
-    new_id = cur.lastrowid
     row = db.execute(
-        "SELECT id, title, done, created_at, list_id FROM todos WHERE id = ?",
-        (new_id,),
+        "SELECT id, title, done, created_at, list_id, position FROM todos WHERE id = ?",
+        (cur.lastrowid,),
     ).fetchone()
     return jsonify(dict(row)), 201
 
 
+@app.post("/api/lists/<int:list_id>/todos/reorder")
+def reorder_todos_in_list(list_id: int):
+    data = request.get_json(force=True) or {}
+    order = data.get("order") or []
+    if not isinstance(order, list):
+        return jsonify({"error": "order must be an array"}), 400
+    try:
+        payload_ids = [int(x) for x in order]
+    except Exception:
+        return jsonify({"error": "order must contain integers"}), 400
+
+    db = get_db()
+    rows = db.execute("SELECT id FROM todos WHERE list_id = ?", (list_id,)).fetchall()
+    existing_ids = [int(r["id"]) for r in rows]
+
+    # Suodata payloadista pois vieraiden listojen ID:t, lisää puuttuvat perään
+    filtered = [i for i in payload_ids if i in existing_ids]
+    rest = [i for i in existing_ids if i not in filtered]
+    final = filtered + rest
+
+    for pos, todo_id in enumerate(final):
+        db.execute("UPDATE todos SET position = ? WHERE id = ?", (pos, todo_id))
+    db.commit()
+    return jsonify({"ok": True})
+
+
 
 # ------------------------
-# FILES
+# File Routes
 # ------------------------
-
 @app.post("/api/files")
 def upload_file():
     if "file" not in request.files:
@@ -361,14 +476,12 @@ def upload_file():
         "ok": True, "id": file_id, "name": safe_name, "mime": mime, "size": size, "checksum": checksum
     }), 201
 
-
 @app.get("/api/files")
 def list_files():
     rows = get_db().execute(
         "SELECT id, name, mime, size, checksum, created_at FROM files ORDER BY created_at DESC"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
-
 
 @app.get("/api/files/<int:file_id>")
 def download_file(file_id: int):
@@ -393,7 +506,6 @@ def download_file(file_id: int):
     resp.headers["Content-Length"] = str(row["size"])
     return resp
 
-
 @app.delete("/api/files/<int:file_id>")
 def delete_file(file_id: int):
     db = get_db()
@@ -411,18 +523,16 @@ def delete_file(file_id: int):
         pass
     return "", 204
 
-
-#------------------------
-#NOTEPAD
-#------------------------
-
-
+# ------------------------
+# Notepad Routes
+# ------------------------
 @app.get("/api/notepad")
 def notepad_list():
     db = get_db()
-    notepad_id = get_notepad_id(db)
+    notepad_id = get_or_create_notepad_id(db)
     rows = db.execute(
-        "SELECT id, title, done, created_at, list_id FROM todos WHERE list_id=? ORDER BY created_at DESC",
+        "SELECT id, title, done, created_at, list_id, position "
+        "FROM todos WHERE list_id = ? ORDER BY position ASC, created_at DESC",
         (notepad_id,),
     ).fetchall()
     return jsonify([dict(r) for r in rows])
@@ -434,22 +544,62 @@ def notepad_create():
     if not title:
         return jsonify({"error": "Title is required"}), 400
     db = get_db()
-    notepad_id = get_notepad_id(db)
+    notepad_id = get_or_create_notepad_id(db)
+
+    db.execute("UPDATE todos SET position = position + 1 WHERE list_id = ?", (notepad_id,))
     cur = db.execute(
-        "INSERT INTO todos (title, done, list_id) VALUES (?, ?, ?)",
+        "INSERT INTO todos (title, done, list_id, position) VALUES (?, ?, ?, 0)",
         (title, 0, notepad_id),
     )
     db.commit()
     row = db.execute(
-        "SELECT id, title, done, created_at, list_id FROM todos WHERE id=?",
+        "SELECT id, title, done, created_at, list_id, position FROM todos WHERE id=?",
         (cur.lastrowid,),
     ).fetchone()
     return jsonify(dict(row)), 201
 
 
 
+# ------------------------
+# Test Routes
+# ------------------------
+
+@app.get("/api/debug/db-path")
+def debug_db_path():
+    return jsonify({"db_path": str(DB_PATH.resolve())})
+
+# ------------------------
+# Admin 
+# ------------------------
+
+@app.post("/api/admin/hide-notepad")
+def admin_hide_notepad():
+    db = get_db()
+    # varmista sarake
+    cols = [r[1] for r in db.execute("PRAGMA table_info(lists)")]
+    if "is_hidden" not in cols:
+        db.execute("ALTER TABLE lists ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0")
+        db.commit()
+
+    # luo Notepad jos puuttuu, PIILOTETTUNA
+    row = db.execute("SELECT id FROM lists WHERE lower(name)='notepad'").fetchone()
+    if not row:
+        db.execute(
+            "INSERT INTO lists (name, position, color, is_hidden) VALUES (?, ?, ?, ?)",
+            ("Notepad", 1, "#e6fffb", 1),
+        )
+        db.commit()
+    else:
+        db.execute("UPDATE lists SET is_hidden=1 WHERE lower(name)='notepad'")
+        db.commit()
+
+    # palauta pieni status + käytössä oleva DB-polku
+    db_path = (Path(__file__).parent / "todo.db").resolve()
+    return jsonify({"ok": True, "db_path": str(db_path)})
+
+
+# ------------------------
+# Main Execution
+# ------------------------
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-

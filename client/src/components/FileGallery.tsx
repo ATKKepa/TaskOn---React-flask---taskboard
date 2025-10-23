@@ -161,12 +161,16 @@ export default function FileGallery({
             onReject={onReject}
             accept={{
               [MIME_TYPES.pdf]: [".pdf"],
+              [MIME_TYPES.jpeg]: [".jpg", ".jpeg"],
+              [MIME_TYPES.pptx]: [".pptx"],
               [MIME_TYPES.png]: [".png"],
               "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                 [".docx"],
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
                 [".xlsx"],
               "text/plain": [".txt"],
+              "application/zip": [".zip"],
+
             }}
             maxSize={50 * 1024 * 1024}
             multiple
@@ -175,7 +179,7 @@ export default function FileGallery({
               <Stack gap={2}>
                 <Text fw={600}>Upload files</Text>
                 <Text c="dimmed" size="sm">
-                  Drag and drop (PDF, PNG, DOCX, XLSX, TXT) or use the upload
+                  Drag and drop (PDF, PNG, DOCX, XLSX, PPTX, TXT, ZIP) or use the upload
                   button.
                 </Text>
               </Stack>

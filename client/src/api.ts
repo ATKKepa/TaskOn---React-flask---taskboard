@@ -97,12 +97,20 @@ export const api = {
       }),
   },
 
-  todosByList: {
-    all: (listId: number) => request<Todo[]>(`/api/lists/${listId}/todos`),
-    create: (listId: number, title: string) =>
-      request<Todo>(`/api/lists/${listId}/todos`, {
-        method: "POST",
-        body: JSON.stringify({ title }),
-      }),
-  },
+todosByList: {
+  all: (listId: number) => request<Todo[]>(`/api/lists/${listId}/todos`),
+  create: (listId: number, title: string) =>
+    request<Todo>(`/api/lists/${listId}/todos`, {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    }),
+  reorder: (listId: number, order: number[]) =>
+    request<{ ok: true }>(`/api/lists/${listId}/todos/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({ order }),
+    }),
+},
+
+
+
 };

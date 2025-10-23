@@ -1,8 +1,13 @@
-export const listContainerId = (listId: number | string) => `list-${listId}`;
+export function listContainerId(listId: number) {
+  return `list-${listId}`;
+}
 
-export const parseListId = (containerId?: string | null) => {
-  if (!containerId) return null;
-  if (containerId === "notepad") return "notepad";
-  const m = containerId.match(/^list-(\d+)$/);
-  return m ? Number(m[1]) : null;
-};
+export function parseListId(id: string): number | "notepad" | null {
+  if (!id) return null;
+  if (id === "notepad") return "notepad";
+  if (id.startsWith("list-")) {
+    const n = Number(id.slice(5));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null; 
+}
