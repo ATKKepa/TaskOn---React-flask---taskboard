@@ -19,7 +19,7 @@ TaskOn is a full-stack productivity workspace that pairs a Flask API with a Reac
 ![TaskOn Quick Tour](docs/taskon-fast.gif)
 
 
-- **Full walkthrough (40 s):** [Watch the extended demo](docs/taskon-demo.mp4) 
+- **Full walkthrough (40 s):** [Watch the extended demo](https://youtu.be/-Tty1Od-bbw) 
 
 ## Features
 
