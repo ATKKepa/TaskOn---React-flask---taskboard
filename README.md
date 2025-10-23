@@ -1,8 +1,8 @@
 # TaskOn
 
-TaskOn is a full-stack productivity workspace that pairs a Flask API with a React + Mantine UI frontend. Organize tasks in draggable boards, keep quick notes, and stash project assets in the built-in file gallery—all backed by a lightweight SQLite database.
+TaskOn is a full-stack productivity workspace that pairs a Flask API with a React + Mantine UI frontend. Organize tasks in draggable boards, keep quick notes, and stash project assets in the built-in file gallery, all backed by a lightweight SQLite database.
 
-> 💡 **Why it matters:** I built TaskOn to demonstrate end-to-end product thinking—real-time drag-and-drop UX, resilient persistence layers, and a polished developer experience. The result is a project that’s ready to deploy and easy to extend.
+> 💡 **Why it matters:** I built TaskOn to demonstrate end-to-end product thinking, real-time drag-and-drop UX, resilient persistence layers, and a polished developer experience. The result is a project that’s ready to deploy and easy to extend.
 
 ## Recruiter-Friendly Highlights
 
@@ -68,7 +68,7 @@ npm install          # or pnpm install
 npm run dev
 ```
 
-Open the Vite dev server (usually `http://127.0.0.1:5173`). API requests are proxied to the Flask backend—update `vite.config.ts` if your backend runs elsewhere.
+Open the Vite dev server (usually `http://127.0.0.1:5173`). API requests are proxied to the Flask backend, update `vite.config.ts` if your backend runs elsewhere.
 
 ## Project Structure
 
@@ -121,7 +121,7 @@ See `server/app.py` for full route definitions and validation rules.
 
 ## Testing & Quality
 
-Add your preferred tooling—for example:
+Add your preferred tooling, for example:
 
 ```bash
 # Frontend linting (configure ESLint)
@@ -139,13 +139,6 @@ pytest
 4. Configure environment variables (`FLASK_ENV`, upload paths, secrets, etc.).
 5. Set up persistent storage for `todo.db` and `uploaded_files/uploads`.
 
-## Demo & Visuals
-
-- **Live demo:** _Deploy-ready_ – connect the Flask API to any static hosting platform (Render, Fly.io, Railway, etc.).
-- **Screen recording:** _Coming soon_ – short Loom/GIF showcasing drag-and-drop, file uploads, and notepad flows.
-- **Screenshot pack:** Exported high-res boards + gallery views for portfolios or case studies.
-
-If you’d like a tailored walkthrough, reach out—happy to share a video overview or live demo.
 
 ## License
 
@@ -153,4 +146,4 @@ This project is released under the [MIT License](LICENSE). Contributions and for
 
 ---
 
-Crafted with Mantine gradients, Flask routes, and a healthy respect for organized boards—and the engineering craftsmanship that keeps them running.
+Crafted with Mantine gradients, Flask routes, and a healthy respect for organized boards and the engineering craftsmanship that keeps them running.
