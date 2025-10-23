@@ -28,7 +28,6 @@ type Props = {
   draft: string;
   onDraftChange: (v: string) => void;
   onAdd: () => void;
-  onToggle: (t: Todo) => void;
   onDelete: (t: Todo) => void;
 
   listId?: string | number;

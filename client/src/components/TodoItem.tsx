@@ -7,7 +7,6 @@ export function TodoItem({
   onDelete,
 }: {
   todo: Todo;
-  onToggle: (t: Todo) => void;
   onDelete: (t: Todo) => void;
   onEdit: (t: Todo, title: string) => void;
 }) {

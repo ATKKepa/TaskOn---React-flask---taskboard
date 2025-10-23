@@ -20,7 +20,6 @@ export function ListColumn({
   newTitle,
   onNewTitleChange,
   onAdd,
-  onToggle,
   onEdit,
   onDelete,
   onDeleteList,
@@ -30,7 +29,6 @@ export function ListColumn({
   newTitle: string;
   onNewTitleChange: (v: string) => void;
   onAdd: () => void;
-  onToggle: (t: Todo) => void;
   onEdit: (t: Todo, title: string) => void;
   onDelete: (t: Todo) => void;
   onDeleteList: () => void;
@@ -78,7 +76,6 @@ export function ListColumn({
             {i > 0 && <Divider my={6} />}
             <TodoItem
               todo={t}
-              onToggle={onToggle}
               onDelete={onDelete}
               onEdit={onEdit}
             />

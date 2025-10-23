@@ -1,0 +1,19 @@
+name: Upload Demo Asset
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload-demo:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create release upload
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME:-demo}"
+          gh release view "$VERSION" || gh release create "$VERSION" --title "$VERSION" --notes "Automated demo upload."
+          gh release upload "$VERSION" docs/taskon-demo.mp4 --clobber

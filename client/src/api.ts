@@ -81,12 +81,6 @@ export const api = {
         body: JSON.stringify({ title }),
       }),
 
-    toggle: (id: number, done: boolean) =>
-      request<Todo>(`/api/todos/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ done }),
-      }),
-
     remove: (id: number) =>
       request<void>(`/api/todos/${id}`, { method: "DELETE" }),
 

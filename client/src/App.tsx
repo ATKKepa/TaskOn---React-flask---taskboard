@@ -26,8 +26,6 @@ function App() {
   // tilastot
   const allTodos = Object.values(listTodos).flat();
   const total = allTodos.length;
-  const doneCount = allTodos.filter((t) => Boolean(t.done)).length;
-  const activeCount = total - doneCount;
 
   async function loadListsAndTodos() {
     try {
@@ -70,19 +68,6 @@ function App() {
         [listId]: [created, ...(m[listId] || [])],
       }));
       setPerListDraft((s) => ({ ...s, [listId]: "" }));
-    } catch (e: any) {
-      notifications.show({ color: "red", title: "Error", message: e.message });
-    }
-  }
-  async function toggleDoneInList(listId: number, todo: Todo) {
-    try {
-      const updated = await api.update(todo.id, { done: !Boolean(todo.done) });
-      setListTodos((m) => ({
-        ...m,
-        [listId]: (m[listId] || []).map((x) =>
-          x.id === todo.id ? updated : x
-        ),
-      }));
     } catch (e: any) {
       notifications.show({ color: "red", title: "Error", message: e.message });
     }
@@ -163,16 +148,6 @@ function App() {
       const created = await api.notepad.create(text);
       setNotepadTodos((arr) => [created, ...arr]);
       setNoteDraft("");
-    } catch (e: any) {
-      notifications.show({ color: "red", title: "Error", message: e.message });
-    }
-  };
-  const toggleInNotepad = async (todo: Todo) => {
-    try {
-      const updated = await api.notepad.toggle(todo.id, !Boolean(todo.done));
-      setNotepadTodos((arr) =>
-        arr.map((x) => (x.id === todo.id ? updated : x))
-      );
     } catch (e: any) {
       notifications.show({ color: "red", title: "Error", message: e.message });
     }
@@ -317,7 +292,6 @@ function App() {
                 setPerListDraft((s) => ({ ...s, [id]: v }))
               }
               onAddTodoToList={addTodoToList}
-              onToggleInList={toggleDoneInList}
               onEditInList={editTitleInList}
               onDeleteInList={removeInList}
               onDeleteList={deleteList}
@@ -346,11 +320,7 @@ function App() {
                     flex: "0 0 280px",
                   }}
                 >
-                  <SummaryCard
-                    total={total}
-                    active={activeCount}
-                    done={doneCount}
-                  />
+                  <SummaryCard total={total} />
                   <AddNewCard onAddList={addListWith} />
                 </div>
 
@@ -363,7 +333,6 @@ function App() {
                       setPerListDraft((s) => ({ ...s, [id]: v }))
                     }
                     onAddTodoToList={addTodoToList}
-                    onToggleInList={toggleDoneInList}
                     onEditInList={editTitleInList}
                     onDeleteInList={removeInList}
                     onDeleteList={deleteList}
@@ -385,7 +354,6 @@ function App() {
                     draft={noteDraft}
                     onDraftChange={setNoteDraft}
                     onAdd={addToNotepad}
-                    onToggle={toggleInNotepad}
                     onDelete={deleteInNotepad}
                     listId="notepad"
                   />

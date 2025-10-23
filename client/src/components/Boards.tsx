@@ -30,7 +30,6 @@ type Props = {
   perListDraft: Record<number, string>;
   onPerListDraftChange: (listId: number, v: string) => void;
   onAddTodoToList: (listId: number) => void;
-  onToggleInList: (listId: number, todo: Todo) => void;
   onEditInList: (listId: number, todo: Todo, next: string) => void;
   onDeleteInList: (listId: number, todo: Todo) => void;
   onDeleteList: (listId: number) => void;

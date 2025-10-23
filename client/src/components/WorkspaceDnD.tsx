@@ -25,7 +25,6 @@ type Props = {
   perListDraft: Record<number, string>;
   onPerListDraftChange: (listId: number, v: string) => void;
   onAddTodoToList: (listId: number) => void;
-  onToggleInList: (listId: number, todo: Todo) => void;
   onEditInList: (listId: number, todo: Todo, next: string) => void;
   onDeleteInList: (listId: number, todo: Todo) => void;
   onDeleteList: (listId: number) => void;
@@ -127,23 +126,32 @@ const onDragEnd = async (e: DragEndEvent) => {
 
   if (!activeContainerId || !overContainerId) return;
 
-  // ---------- 3) Saman listan sisäinen reorder ----------
- if (
-  activeContainerId === overContainerId &&
-  activeId.startsWith("todo-") &&
-  overId.startsWith("todo-")
-) {
-  const listId = parseListId(activeContainerId);
-  if (typeof listId !== "number") return;
+  // ---------- 3) Intra-list reorder ----------
+  if (
+    activeContainerId === overContainerId &&
+    activeId.startsWith("todo-")
+  ) {
+    const listId = parseListId(activeContainerId);
+    if (typeof listId !== "number") return;
 
-  const arr = listTodos[listId] ?? [];
-  const fromIndex = arr.findIndex((t) => `todo-${t.id}` === activeId);
-  const toIndex   = arr.findIndex((t) => `todo-${t.id}` === overId);
-  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+    const arr = listTodos[listId] ?? [];
+    const fromIndex = arr.findIndex((t) => `todo-${t.id}` === activeId);
+    if (fromIndex < 0) return;
 
-  onReorderWithinList(listId, fromIndex, toIndex);  // ⬅️ kutsu omaa handleria
-  return;
-}
+    let toIndex = -1;
+    if (overId.startsWith("todo-")) {
+      toIndex = arr.findIndex((t) => `todo-${t.id}` === overId);
+    }
+    if (toIndex < 0) {
+      // drop landed on the container (e.g. past the last card) -> move to the end
+      toIndex = arr.length - 1;
+    }
+
+    if (toIndex < 0 || fromIndex === toIndex) return;
+
+    onReorderWithinList(listId, fromIndex, toIndex);
+    return;
+  }
 
   // ---------- 4) Siirto listasta toiseen (tai notepad -> listalle) ----------
   if (activeId.startsWith("todo-") && activeContainerId !== overContainerId) {

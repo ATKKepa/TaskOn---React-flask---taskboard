@@ -22,6 +22,7 @@ import {
   IconFileTypePng,
   IconFileTypeDocx,
   IconFileTypeXls,
+  IconFileTypeZip,
   IconFileText,
 } from "@tabler/icons-react";
 
@@ -43,6 +44,13 @@ const humanSize = (n: number) => {
 function iconForMime(mime: string) {
   if (mime === "application/pdf") return <IconFileTypePdf />;
   if (mime === "image/png") return <IconFileTypePng />;
+  if (
+    mime === "application/zip" ||
+    mime === "application/x-zip-compressed" ||
+    mime === "application/x-rar-compressed" ||
+    mime === "application/vnd.rar"
+  )
+    return <IconFileTypeZip />;
   if (
     mime ===
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -164,12 +172,15 @@ export default function FileGallery({
               [MIME_TYPES.jpeg]: [".jpg", ".jpeg"],
               [MIME_TYPES.pptx]: [".pptx"],
               [MIME_TYPES.png]: [".png"],
+              [MIME_TYPES.zip]: [".zip"],
+              "application/x-zip-compressed": [".zip"],
+              "application/x-rar-compressed": [".rar"],
+              "application/vnd.rar": [".rar"],
               "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                 [".docx"],
               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
                 [".xlsx"],
               "text/plain": [".txt"],
-              "application/zip": [".zip"],
 
             }}
             maxSize={50 * 1024 * 1024}
@@ -179,7 +190,7 @@ export default function FileGallery({
               <Stack gap={2}>
                 <Text fw={600}>Upload files</Text>
                 <Text c="dimmed" size="sm">
-                  Drag and drop (PDF, PNG, DOCX, XLSX, PPTX, TXT, ZIP) or use the upload
+                  Drag and drop (PDF, PNG, DOCX, XLSX, PPTX, TXT, ZIP, RAR) or use the upload
                   button.
                 </Text>
               </Stack>
@@ -189,7 +200,7 @@ export default function FileGallery({
                   type="file"
                   multiple
                   hidden
-                  accept=".pdf,.png,.docx,.xlsx,.txt"
+                  accept=".pdf,.png,.docx,.xlsx,.txt,.pptx,.jpg,.jpeg,.zip,.rar"
                   onChange={onPickFiles}
                 />
                 <Button

@@ -15,11 +15,15 @@ UPLOAD_DIR = BASE_DIR / "uploads"
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_EXTS = {".txt", ".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".pptx"}
+ALLOWED_EXTS = {".txt", ".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".pptx", ".zip", ".rar"}
 ALLOWED_MIME = {"text/plain", "application/pdf", "image/png", "image/jpeg",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "application/zip",
+                "application/x-zip-compressed",
+                "application/vnd.rar",
+                "application/x-rar-compressed",
                }
 
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
@@ -156,6 +160,7 @@ def migrate_schema(db):
 def backfill_data(db):
     ensure_default_lists_once(db)
 
+    dirty = False
     null_cnt = db.execute("SELECT COUNT(*) AS c FROM todos WHERE list_id IS NULL").fetchone()["c"]
     if null_cnt > 0:
         inbox_id = fetch_list_id(db, "Inbox")
@@ -168,16 +173,32 @@ def backfill_data(db):
             db.commit()
             inbox_id = fetch_list_id(db, "Inbox")
         db.execute("UPDATE todos SET list_id = ? WHERE list_id IS NULL", (inbox_id,))
+        dirty = True
 
     list_ids = [int(r["id"]) for r in db.execute("SELECT id FROM lists").fetchall()]
     for lid in list_ids:
+        rows = db.execute(
+            "SELECT id, position FROM todos WHERE list_id = ? ORDER BY position ASC",
+            (lid,),
+        ).fetchall()
+        positions = [r["position"] for r in rows]
+        needs_fix = any(p is None for p in positions)
+        if not needs_fix:
+            expected = list(range(len(positions)))
+            needs_fix = sorted(positions) != expected
+        if not needs_fix:
+            continue
+
+        dirty = True
         rows = db.execute(
             "SELECT id FROM todos WHERE list_id = ? ORDER BY created_at DESC, id DESC",
             (lid,),
         ).fetchall()
         for pos, r in enumerate(rows):
             db.execute("UPDATE todos SET position = ? WHERE id = ?", (pos, int(r["id"])))
-    db.commit()
+
+    if dirty:
+        db.commit()
 
 def get_or_create_notepad_id(db: sqlite3.Connection) -> int:
     row = db.execute("SELECT id FROM lists WHERE name = 'Notepad'").fetchone()

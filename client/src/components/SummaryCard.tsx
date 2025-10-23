@@ -14,8 +14,6 @@ export function SummaryCard({
   leftPad = 40,
 }: {
   total: number;
-  active: number;
-  done: number;
   width?: number;
   leftPad?: number;
 }) {
